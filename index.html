@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Sound Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Onboarding Overlay -->
+    <div id="onboarding" class="onboarding hidden">
+        <div class="onboarding-content">
+            <div class="onboarding-step" data-step="1">
+                <div class="onboarding-icon"></div>
+                <h2>Let's Explore Sounds!</h2>
+                <p>First, we need permission to use your microphone so we can hear the sounds around you.</p>
+                <button class="btn-primary btn-large" id="allowMicBtn">Allow Microphone</button>
+            </div>
+            <div class="onboarding-step hidden" data-step="2">
+                <div class="onboarding-icon"></div>
+                <h2>Amazing! Now You're Ready!</h2>
+                <p>Watch the colors dance to the sounds around you. When you hear something cool, tap the big red RECORD button!</p>
+                <button class="btn-primary btn-large" id="startExploringBtn">Start Exploring</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app" class="app hidden">
+        <!-- Header -->
+        <header class="app-header">
+            <h1>Sound Explorer</h1>
+            <button class="btn-icon" id="settingsBtn" aria-label="Settings">⚙️</button>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="listen" aria-label="Listen Tab">
+                <span class="tab-icon"></span>
+                <span class="tab-label">Listen</span>
+            </button>
+            <button class="tab-btn" data-tab="hunt" aria-label="Sound Hunt Tab">
+                <span class="tab-icon"></span>
+                <span class="tab-label">Missions</span>
+            </button>
+            <button class="tab-btn" data-tab="gallery" aria-label="Gallery Tab">
+                <span class="tab-icon"></span>
+                <span class="tab-label">Gallery</span>
+            </button>
+            <button class="tab-btn" data-tab="map" aria-label="Map Tab">
+                <span class="tab-icon"></span>
+                <span class="tab-label">Map</span>
+            </button>
+        </nav>
+
+        <!-- Listen Tab -->
+        <div class="tab-content active" id="listenTab">
+            <!-- Visualization Canvas -->
+            <div class="viz-container">
+                <canvas id="fftCanvas" class="viz-canvas"></canvas>
+                <div id="levelMeter" class="level-meter">
+                    <div class="level-bar" id="levelBar"></div>
+                    <span class="level-text" id="levelText">Quiet</span>
+                </div>
+            </div>
+
+            <button class="viz-start-btn" id="vizStartBtn">
+                <span class="viz-start-icon">▶️</span>
+                <span class="viz-start-text">START LISTENING</span>
+            </button>
+
+            <!-- Controls -->
+            <div class="listen-controls">
+                <button class="btn-record" id="recordBtn" aria-label="Record sound">
+                    <span class="record-icon">⏺</span>
+                    <span class="record-text">RECORD</span>
+                </button>
+                <div class="recording-timer hidden" id="recordingTimer">Recording: <span id="timerText">0s</span></div>
+            </div>
+        </div>
+
+        <!-- Sound Hunt Tab -->
+        <div class="tab-content" id="huntTab">
+            <div class="hunt-header">
+                <h2>🎯 Sound Missions & Badges</h2>
+                <p class="hunt-subtitle">Complete missions to earn badges!</p>
+                <div class="badges-stats" id="badgesStats"></div>
+            </div>
+            <div class="missions-grid" id="missionsGrid"></div>
+        </div>
+
+        <!-- Gallery Tab -->
+        <div class="tab-content" id="galleryTab">
+            <div class="gallery-controls">
+                <input type="search" id="searchInput" placeholder="🔍 Search sounds..." class="search-input" aria-label="Search recordings">
+                <div class="filter-tags" id="filterTags"></div>
+            </div>
+            <div class="gallery-grid" id="galleryGrid">
+                <div class="empty-state">
+                    <div class="empty-icon"></div>
+                    <p>No sounds recorded yet!</p>
+                    <p>Go to the Listen tab and press RECORD to capture your first sound.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map Tab -->
+        <div class="tab-content" id="mapTab">
+            <div class="map-container" id="mapContainer">
+                <img id="mapBackground" class="map-background hidden" alt="Map background">
+                <div class="map-overlay" id="mapOverlay"></div>
+                <div class="map-legend">
+                    <h3>Sound Types</h3>
+                    <div class="legend-item"><span class="legend-color low"></span> Low / Rumble</div>
+                    <div class="legend-item"><span class="legend-color mid"></span> Mid / Buzz</div>
+                    <div class="legend-item"><span class="legend-color high"></span> High / Chirp</div>
+                </div>
+                <div class="empty-state" id="mapEmptyState">
+                    <div class="empty-icon"></div>
+                    <p>No sounds on the map yet!</p>
+                    <p>Drag sounds from the list below onto the map to place them.</p>
+                </div>
+            </div>
+            <div class="map-recordings-list" id="mapRecordingsList">
+                <h3>📦 Drag Sounds to Map</h3>
+                <div class="map-recordings-grid" id="mapRecordingsGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Badge Earned Popup -->
+    <div id="badgePopup" class="badge-popup hidden">
+        <div class="badge-popup-content">
+            <div class="badge-popup-confetti"></div>
+            <div class="badge-popup-icon" id="badgePopupIcon"></div>
+            <h2 id="badgePopupTitle">Mission Complete!</h2>
+            <p id="badgePopupMessage">You earned a badge!</p>
+            <button class="btn-primary btn-large" id="closeBadgePopup">Awesome!</button>
+        </div>
+    </div>
+
+    <!-- Label Modal -->
+    <div id="labelModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Name Your Sound</h2>
+            <p class="modal-help">What should we call this sound?</p>
+            
+            <input type="text" id="labelInput" class="label-input" placeholder="Type a name..." aria-label="Sound label">
+
+            <h3>Pick Tags (tap any that fit!)</h3>
+            <div class="tag-picker" id="tagPicker">
+                <button class="tag-btn" data-tag="water">Water</button>
+                <button class="tag-btn" data-tag="wind">Wind</button>
+                <button class="tag-btn" data-tag="birds">Birds</button>
+                <button class="tag-btn" data-tag="insects">Insects</button>
+                <button class="tag-btn" data-tag="leaves">Leaves</button>
+                <button class="tag-btn" data-tag="rain">Rain</button>
+                <button class="tag-btn" data-tag="thunder">Thunder</button>
+                <button class="tag-btn" data-tag="animals">Animals</button>
+                <button class="tag-btn" data-tag="rustling">Rustling</button>
+                <button class="tag-btn" data-tag="flowing">Flowing</button>
+                <button class="tag-btn" data-tag="mechanical">Mechanical</button>
+                <button class="tag-btn" data-tag="voices">Voices</button>
+                <button class="tag-btn" data-tag="quiet">Quiet</button>
+                <button class="tag-btn" data-tag="loud">Loud</button>
+                <button class="tag-btn" data-tag="rhythmic">Rhythmic</button>
+                <button class="tag-btn" data-tag="continuous">Continuous</button>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelLabel">Cancel</button>
+                <button class="btn-primary btn-large" id="saveLabel">Save Sound</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Settings</h2>
+            
+            <div class="setting-group">
+                <label for="recordingLength">Recording Length</label>
+                <input type="range" id="recordingLength" min="5" max="15" value="7" class="slider">
+                <span id="recordingLengthValue">7 seconds</span>
+            </div>
+
+            <!-- geolocation toggle removed -->
+
+            <div class="setting-group">
+                <label for="mapBackgroundUpload">Map Background</label>
+                <input type="file" id="mapBackgroundUpload" accept="image/*" class="file-input">
+                <button class="btn-secondary" id="uploadMapBtn">Upload Map Image</button>
+            </div>
+
+            <div class="setting-group">
+                <button class="btn-secondary" id="exportDataBtn">📦 Export All Data</button>
+                <button class="btn-secondary" id="importDataBtn">📥 Import Data</button>
+                <input type="file" id="importDataFile" accept=".zip" class="file-input hidden">
+            </div>
+
+            <div class="setting-group danger">
+                <button class="btn-danger" id="clearDataBtn">🗑️ Clear All Data</button>
+                <p class="setting-help">This cannot be undone!</p>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-primary" id="closeSettings">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="modal hidden">
+        <div class="modal-content">
+            <h2>Are You Sure?</h2>
+            <p id="confirmMessage"></p>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="confirmCancel">Cancel</button>
+                <button class="btn-danger" id="confirmOk">Yes, Continue</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
