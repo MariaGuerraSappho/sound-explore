@@ -17,6 +17,7 @@ class SoundExplorer {
         this.currentAudio = null;
         this.draggedRecording = null;
         this.mapPositions = {}; // Store positions of recordings on map
+        this.mapActiveTags = [];
         
         // Sound Hunt missions
         this.missions = [
@@ -212,6 +213,8 @@ class SoundExplorer {
         document.getElementById('confirmCancel').addEventListener('click', () => {
             document.getElementById('confirmModal').classList.add('hidden');
         });
+
+        window.addEventListener('resize', () => this.resizeMapToImage());
     }
 
     async initAudio() {
@@ -241,6 +244,8 @@ class SoundExplorer {
 
         if (tab === 'map') {
             this.renderMap();
+            // ensure sizing after Map tab becomes visible
+            requestAnimationFrame(() => this.resizeMapToImage());
         }
 
         if (tab === 'hunt') {
@@ -431,8 +436,10 @@ class SoundExplorer {
 
         this.mapBackgroundUrl = await this.storage.get('mapBackground');
         if (this.mapBackgroundUrl) {
-            document.getElementById('mapBackground').src = this.mapBackgroundUrl;
-            document.getElementById('mapBackground').classList.remove('hidden');
+            const img = document.getElementById('mapBackground');
+            img.onload = () => { this.resizeMapToImage(); document.getElementById('mapContainer').classList.add('has-image'); };
+            img.src = this.mapBackgroundUrl;
+            img.classList.remove('hidden');
         }
         
         // Load map positions
@@ -567,6 +574,7 @@ class SoundExplorer {
         const overlay = document.getElementById('mapOverlay');
         const emptyState = document.getElementById('mapEmptyState');
         const recordingsGrid = document.getElementById('mapRecordingsGrid');
+        const filterBar = document.getElementById('mapFilterTags');
         
         // Get recordings that are placed on the map
         const recordingsOnMap = Object.keys(this.mapPositions);
@@ -618,33 +626,28 @@ class SoundExplorer {
         });
 
         // Render draggable recordings list
-        recordingsGrid.innerHTML = this.recordings.map(rec => {
-            const onMap = this.mapPositions[rec.id];
-            
+        const allTags = [...new Set(this.recordings.flatMap(r => r.tags || []))];
+        filterBar.innerHTML = allTags.map(t => `<button class="filter-tag ${this.mapActiveTags.includes(t)?'active':''}" data-tag="${t}">${t}</button>`).join('');
+        filterBar.querySelectorAll('.filter-tag').forEach(btn=>{
+            btn.onclick=()=>{ const tag=btn.dataset.tag; const idx=this.mapActiveTags.indexOf(tag);
+                if(idx>-1){ this.mapActiveTags.splice(idx,1); btn.classList.remove('active'); } else { this.mapActiveTags.push(tag); btn.classList.add('active'); }
+                this.renderMap();
+            };
+        });
+        
+        const list = this.recordings.filter(r => !this.mapPositions[r.id]).filter(r => this.mapActiveTags.length===0 || (r.tags||[]).some(t=>this.mapActiveTags.includes(t)));
+        recordingsGrid.innerHTML = list.map(rec => {
+            const color = this.getColorForRecording(rec.id);
             return `
-                <div class="map-recording-item ${onMap ? 'on-map' : ''}" 
-                     data-id="${rec.id}" draggable="${!onMap}">
-                    <img src="${rec.thumbnail}" alt="${rec.label}" class="map-recording-thumbnail">
+                <div class="map-recording-item" data-id="${rec.id}" draggable="true">
+                    <div class="map-recording-dot" style="background:${color}"></div>
                     <div class="map-recording-label">${rec.label}</div>
-                    <div class="map-recording-tags">
-                        ${rec.tags.slice(0, 3).map(tag => `<span class="tag-chip">${tag}</span>`).join('')}
-                    </div>
-                    ${onMap ? '<small style="color: var(--secondary-color)">✓ On map</small>' : ''}
-                </div>
-            `;
+                </div>`;
         }).join('');
 
-        // Add drag listeners to recording items
-        recordingsGrid.querySelectorAll('.map-recording-item:not(.on-map)').forEach(item => {
-            item.addEventListener('dragstart', (e) => {
-                this.draggedRecording = item.dataset.id;
-                e.dataTransfer.effectAllowed = 'move';
-                item.style.opacity = '0.5';
-            });
-            
-            item.addEventListener('dragend', (e) => {
-                item.style.opacity = '1';
-            });
+        recordingsGrid.querySelectorAll('.map-recording-item').forEach(item=>{
+            item.addEventListener('dragstart', (e) => { this.draggedRecording = item.dataset.id; e.dataTransfer.effectAllowed='move'; item.style.opacity='0.5'; });
+            item.addEventListener('dragend', () => { item.style.opacity='1'; });
         });
 
         // Setup drop zone on map container
@@ -680,6 +683,19 @@ class SoundExplorer {
             this.addToMap(this.draggedRecording, clampedX, clampedY);
             this.draggedRecording = null;
         });
+
+        // ensure background image is visible if available
+        if (this.mapBackgroundUrl) {
+            const img = document.getElementById('mapBackground');
+            if (img.src !== this.mapBackgroundUrl) {
+                img.onload = () => { this.resizeMapToImage(); };
+                img.src = this.mapBackgroundUrl;
+            }
+            img.classList.remove('hidden');
+            document.getElementById('mapContainer').classList.add('has-image');
+            // in case image is already loaded
+            if (img.complete && img.naturalWidth) this.resizeMapToImage();
+        }
     }
 
     async addToMap(recordingId, x, y) {
@@ -735,11 +751,12 @@ class SoundExplorer {
 
         const reader = new FileReader();
         reader.onload = async (e) => {
+            const img = document.getElementById('mapBackground');
+            img.onload = () => { this.resizeMapToImage(); document.getElementById('mapContainer').classList.add('has-image'); };
             this.mapBackgroundUrl = e.target.result;
             await this.storage.set('mapBackground', e.target.result);
-            
-            document.getElementById('mapBackground').src = e.target.result;
-            document.getElementById('mapBackground').classList.remove('hidden');
+            img.src = e.target.result;
+            img.classList.remove('hidden');
         };
         reader.readAsDataURL(file);
     }
@@ -866,6 +883,15 @@ class SoundExplorer {
         // Deterministic bright color per id
         const hue = parseInt(id, 10) % 360;
         return `hsl(${hue}, 75%, 55%)`;
+    }
+
+    resizeMapToImage() {
+        const img = document.getElementById('mapBackground');
+        const container = document.getElementById('mapContainer');
+        if (!img || img.classList.contains('hidden') || !img.naturalWidth) return;
+        if (container.clientWidth === 0) { requestAnimationFrame(() => this.resizeMapToImage()); return; }
+        const ratio = img.naturalHeight / img.naturalWidth;
+        container.style.height = `${Math.round(container.clientWidth * ratio)}px`;
     }
 }
 

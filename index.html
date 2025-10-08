@@ -118,18 +118,21 @@
 
         <!-- Map Tab -->
         <div class="tab-content" id="mapTab">
-            <div class="map-container" id="mapContainer">
-                <img id="mapBackground" class="map-background hidden" alt="Map background">
-                <div class="map-overlay" id="mapOverlay"></div>
-                <div class="empty-state" id="mapEmptyState">
-                    <div class="empty-icon"></div>
-                    <p>No sounds on the map yet!</p>
-                    <p>Drag sounds from the list below onto the map to place them.</p>
+            <div class="map-content-wrapper">
+                <div class="map-container" id="mapContainer">
+                    <img id="mapBackground" class="map-background hidden" alt="Map background">
+                    <div class="map-overlay" id="mapOverlay"></div>
+                    <div class="empty-state" id="mapEmptyState">
+                        <div class="empty-icon"></div>
+                        <p>No map image uploaded yet!</p>
+                        <p>Go to Settings to upload a map background.</p>
+                    </div>
                 </div>
-            </div>
-            <div class="map-recordings-list" id="mapRecordingsList">
-                <h3>📦 Drag Sounds to Map</h3>
-                <div class="map-recordings-grid" id="mapRecordingsGrid"></div>
+                <div class="map-recordings-list" id="mapRecordingsList">
+                    <h3>📦 Drag Sounds to Map</h3>
+                    <div class="map-filter-tags" id="mapFilterTags"></div>
+                    <div class="map-recordings-grid" id="mapRecordingsGrid"></div>
+                </div>
             </div>
         </div>
     </div>

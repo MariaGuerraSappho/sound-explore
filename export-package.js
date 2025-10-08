@@ -1,3 +1,5 @@
+import { convertBlobToWav } from './audio-convert.js';
+
 export class Exporter {
   async createZip({ recordings, mapPositions, mapBackgroundUrl }) {
     const zip = new JSZip();
@@ -12,10 +14,10 @@ export class Exporter {
     for (const rec of recordings) {
       const label = rec.label || 'Untitled_Sound';
       const name = `${new Date(rec.timestamp).toISOString().slice(0,10)}_${sanitize(label)}_${rec.id}`;
-      const audioBlob = rec.audioBlob;
+      const audioBlob = await convertBlobToWav(rec.audioBlob);
       const thumbBlob = await toBlob(rec.thumbnail);
 
-      soundsFolder.file(`${name}.webm`, audioBlob);
+      soundsFolder.file(`${name}.wav`, audioBlob);
       thumbsFolder.file(`${name}.png`, thumbBlob);
 
       items.push({
@@ -24,12 +26,12 @@ export class Exporter {
         tags: rec.tags,
         timestamp: rec.timestamp,
         durationMs: rec.duration,
-        audio: `sounds/${name}.webm`,
+        audio: `sounds/${name}.wav`,
         thumbnail: `thumbnails/${name}.png`,
         map: mapPositions[rec.id] || null
       });
       // per-sound note with tags
-      const note = `Label: ${rec.label}\nDate: ${new Date(rec.timestamp).toLocaleString()}\nDuration: ${Math.round(rec.duration/1000)}s\nTags: ${(rec.tags||[]).join(', ') || 'None'}\nFile: ${name}.webm\n`;
+      const note = `Label: ${rec.label}\nDate: ${new Date(rec.timestamp).toLocaleString()}\nDuration: ${Math.round(rec.duration/1000)}s\nTags: ${(rec.tags||[]).join(', ') || 'None'}\nFile: ${name}.wav\n`;
       soundsFolder.file(`${name}.txt`, note);
     }
 
@@ -128,7 +130,7 @@ export class Exporter {
       const ctrl = document.createElement('div'); ctrl.className='controls';
       const p = document.createElement('button'); p.textContent='Play'; p.addEventListener('click', ()=> play(item.audio));
       const dl = document.createElement('a'); dl.textContent='Download'; dl.className='secondary'; dl.href=item.audio; dl.download=(item.label||'sound')+'.webm'; dl.style.textDecoration='none'; dl.style.display='inline-block'; dl.style.padding='8px 12px'; dl.style.border='1px solid #ddd'; dl.style.borderRadius='8px';
-      const nt = document.createElement('a'); nt.textContent='Tags Note'; nt.className='secondary'; nt.href=item.audio.replace(/\\.webm$/i,'.txt'); nt.download=(item.label||'sound')+'_tags.txt'; nt.style.textDecoration='none'; nt.style.display='inline-block'; nt.style.padding='8px 12px'; nt.style.border='1px solid #ddd'; nt.style.borderRadius='8px';
+      const nt = document.createElement('a'); nt.textContent='Tags Note'; nt.className='secondary'; nt.href=item.audio.replace(/\\.wav$/i,'.txt'); nt.download=(item.label||'sound')+'_tags.txt'; nt.style.textDecoration='none'; nt.style.display='inline-block'; nt.style.padding='8px 12px'; nt.style.border='1px solid #ddd'; nt.style.borderRadius='8px';
       ctrl.appendChild(p); ctrl.appendChild(dl); ctrl.appendChild(nt); ct.appendChild(ctrl); c.appendChild(ct); return c;
     }
     const audio = new Audio();
