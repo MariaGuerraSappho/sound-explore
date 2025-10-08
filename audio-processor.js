@@ -3,6 +3,7 @@ export class AudioProcessor {
         this.audioContext = null;
         this.analyser = null;
         this.microphone = null;
+        this.gainNode = null;
         this.mediaRecorder = null;
         this.recordedChunks = [];
         this.animationId = null;
@@ -39,8 +40,13 @@ export class AudioProcessor {
             this.bufferLength = this.analyser.frequencyBinCount;
             this.dataArray = new Uint8Array(this.bufferLength);
 
-            // Connect
-            this.microphone.connect(this.analyser);
+            // Create Gain Node for volume control
+            this.gainNode = this.audioContext.createGain();
+            this.gainNode.gain.value = 1; // Default gain
+
+            // Connect: microphone -> gain -> analyser
+            this.microphone.connect(this.gainNode);
+            this.gainNode.connect(this.analyser);
 
             // Setup canvas
             this.fftCanvas = document.getElementById('fftCanvas');
@@ -59,6 +65,13 @@ export class AudioProcessor {
         } catch (error) {
             console.error('Error initializing audio:', error);
             throw error;
+        }
+    }
+
+    setGain(value) {
+        if (this.gainNode) {
+            // Using setTargetAtTime for smooth transitions to avoid clicks
+            this.gainNode.gain.setTargetAtTime(parseFloat(value), this.audioContext.currentTime, 0.01);
         }
     }
 

@@ -1,5 +1,6 @@
 import { AudioProcessor } from './audio-processor.js';
 import { Storage } from './storage.js';
+import { Exporter } from './export-package.js';
 
 class SoundExplorer {
     constructor() {
@@ -158,6 +159,12 @@ class SoundExplorer {
         // Listen controls - removed smoothness and focus sliders
         document.getElementById('recordBtn').addEventListener('click', () => this.toggleRecording());
 
+        document.getElementById('gainSlider').addEventListener('input', (e) => {
+            if (this.audioProcessor) {
+                this.audioProcessor.setGain(e.target.value);
+            }
+        });
+
         // Label modal
         document.getElementById('saveLabel').addEventListener('click', () => this.saveRecording());
         document.getElementById('cancelLabel').addEventListener('click', () => this.closeLabelModal());
@@ -190,7 +197,8 @@ class SoundExplorer {
             this.uploadMapBackground(e.target.files[0]);
         });
 
-        document.getElementById('exportDataBtn').addEventListener('click', () => this.exportData());
+        document.getElementById('exportDataBtn').addEventListener('click', () => this.exportPackage());
+        document.getElementById('sharePackageBtn').addEventListener('click', () => this.exportPackage(true));
         document.getElementById('importDataBtn').addEventListener('click', () => {
             document.getElementById('importDataFile').click();
         });
@@ -577,14 +585,9 @@ class SoundExplorer {
             
             const pos = this.mapPositions[recId];
             
-            // Determine sound type based on tags
-            let soundType = 'mid';
-            if (rec.tags.includes('low') || rec.tags.includes('rumble')) soundType = 'low';
-            if (rec.tags.includes('high') || rec.tags.includes('chirp')) soundType = 'high';
-
             return `
-                <div class="map-pin ${soundType}" 
-                     style="left: ${pos.x}%; top: ${pos.y}%;" 
+                <div class="map-pin" 
+                     style="left: ${pos.x}%; top: ${pos.y}%; background: ${pos.color || '#8b5cf6'};" 
                      data-id="${rec.id}"
                      draggable="true">
                     📍
@@ -618,16 +621,9 @@ class SoundExplorer {
         recordingsGrid.innerHTML = this.recordings.map(rec => {
             const onMap = this.mapPositions[rec.id];
             
-            // Determine sound type based on tags
-            let soundType = 'mid';
-            if (rec.tags.includes('low') || rec.tags.includes('rumble')) soundType = 'low';
-            if (rec.tags.includes('high') || rec.tags.includes('chirp')) soundType = 'high';
-            
             return `
                 <div class="map-recording-item ${onMap ? 'on-map' : ''}" 
-                     data-id="${rec.id}"
-                     data-type="${soundType}"
-                     draggable="${!onMap}">
+                     data-id="${rec.id}" draggable="${!onMap}">
                     <img src="${rec.thumbnail}" alt="${rec.label}" class="map-recording-thumbnail">
                     <div class="map-recording-label">${rec.label}</div>
                     <div class="map-recording-tags">
@@ -687,7 +683,8 @@ class SoundExplorer {
     }
 
     async addToMap(recordingId, x, y) {
-        this.mapPositions[recordingId] = { x, y };
+        const color = this.mapPositions[recordingId]?.color || this.getColorForRecording(recordingId);
+        this.mapPositions[recordingId] = { x, y, color };
         await this.storage.set('mapPositions', this.mapPositions);
         this.renderMap();
     }
@@ -747,29 +744,22 @@ class SoundExplorer {
         reader.readAsDataURL(file);
     }
 
-    async exportData() {
-        // Create a simple export (in real app, would create proper ZIP)
-        const data = {
-            recordings: await Promise.all(this.recordings.map(async rec => ({
-                ...rec,
-                audioData: await this.blobToBase64(rec.audioBlob)
-            }))),
-            settings: {
-                recordingDuration: this.recordingDuration,
-                geolocationEnabled: this.geolocationEnabled,
-                mapBackground: this.mapBackgroundUrl
-            }
-        };
+    async exportPackage(share = false) {
+        const exporter = new Exporter();
+        const { blob, filename } = await exporter.createZip({
+            recordings: this.recordings,
+            mapPositions: this.mapPositions,
+            mapBackgroundUrl: this.mapBackgroundUrl
+        });
+        const file = new File([blob], filename, { type: 'application/zip' });
 
-        const json = JSON.stringify(data, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
+        if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
+            try { await navigator.share({ files: [file], title: 'Sound Explorer Package' }); } catch {}
+            return;
+        }
         const url = URL.createObjectURL(blob);
-        
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `sound-explorer-${Date.now()}.json`;
-        a.click();
-        
+        a.href = url; a.download = filename; a.click();
         URL.revokeObjectURL(url);
     }
 
@@ -870,6 +860,12 @@ class SoundExplorer {
             icon.textContent = '⏹️';
             text.textContent = 'STOP LISTENING';
         }
+    }
+    
+    getColorForRecording(id) {
+        // Deterministic bright color per id
+        const hue = parseInt(id, 10) % 360;
+        return `hsl(${hue}, 75%, 55%)`;
     }
 }
 

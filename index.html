@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="manifest" href="manifest.json">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
     <!-- Onboarding Overlay -->
@@ -74,6 +75,14 @@
 
             <!-- Controls -->
             <div class="listen-controls">
+                <div class="slider-group">
+                    <label for="gainSlider" class="slider-label">
+                        <span class="slider-icon">🎙️</span>
+                        <span>Mic Power</span>
+                    </label>
+                    <input type="range" id="gainSlider" min="0.5" max="10" value="1" step="0.1" class="slider">
+                    <p class="slider-help">Make quiet sounds LOUDER!</p>
+                </div>
                 <button class="btn-record" id="recordBtn" aria-label="Record sound">
                     <span class="record-icon">⏺</span>
                     <span class="record-text">RECORD</span>
@@ -112,12 +121,6 @@
             <div class="map-container" id="mapContainer">
                 <img id="mapBackground" class="map-background hidden" alt="Map background">
                 <div class="map-overlay" id="mapOverlay"></div>
-                <div class="map-legend">
-                    <h3>Sound Types</h3>
-                    <div class="legend-item"><span class="legend-color low"></span> Low / Rumble</div>
-                    <div class="legend-item"><span class="legend-color mid"></span> Mid / Buzz</div>
-                    <div class="legend-item"><span class="legend-color high"></span> High / Chirp</div>
-                </div>
                 <div class="empty-state" id="mapEmptyState">
                     <div class="empty-icon"></div>
                     <p>No sounds on the map yet!</p>
@@ -197,8 +200,9 @@
             </div>
 
             <div class="setting-group">
-                <button class="btn-secondary" id="exportDataBtn">📦 Export All Data</button>
-                <button class="btn-secondary" id="importDataBtn">📥 Import Data</button>
+                <button class="btn-secondary" id="exportDataBtn">Export Package (ZIP)</button>
+                <button class="btn-secondary" id="sharePackageBtn">Share Package</button>
+                <button class="btn-secondary" id="importDataBtn">Import Package</button>
                 <input type="file" id="importDataFile" accept=".zip" class="file-input hidden">
             </div>
 
