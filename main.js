@@ -576,16 +576,15 @@ class SoundExplorer {
         const recordingsGrid = document.getElementById('mapRecordingsGrid');
         const filterBar = document.getElementById('mapFilterTags');
         
-        // Get recordings that are placed on the map
-        const recordingsOnMap = Object.keys(this.mapPositions);
-        const recordingsNotOnMap = this.recordings.filter(r => !this.mapPositions[r.id]);
-
-        if (recordingsOnMap.length === 0) {
-            emptyState.style.display = 'flex';
-        } else {
+        if (this.mapBackgroundUrl) {
             emptyState.style.display = 'none';
+        } else {
+            emptyState.style.display = 'flex';
         }
 
+        // Get recordings that are placed on the map
+        const recordingsOnMap = Object.keys(this.mapPositions);
+        
         // Render recordings on the map
         overlay.innerHTML = recordingsOnMap.map(recId => {
             const rec = this.recordings.find(r => r.id === recId);

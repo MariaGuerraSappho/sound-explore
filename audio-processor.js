@@ -98,7 +98,7 @@ export class AudioProcessor {
     resizeCanvases() {
         const parent = this.fftCanvas.parentElement;
         const width = parent.clientWidth;
-        const height = 300;
+        const height = parent.clientHeight;
 
         this.fftCanvas.width = width;
         this.fftCanvas.height = height;
@@ -144,28 +144,13 @@ export class AudioProcessor {
             const value = this.dataArray[i];
             const percent = value / 255;
             
-            // Color-blind friendly gradient: blue -> cyan -> yellow -> red
-            let r, g, b;
-            if (percent < 0.25) {
-                r = 0;
-                g = percent * 4 * 255;
-                b = 255;
-            } else if (percent < 0.5) {
-                r = 0;
-                g = 255;
-                b = 255 - (percent - 0.25) * 4 * 255;
-            } else if (percent < 0.75) {
-                r = (percent - 0.5) * 4 * 255;
-                g = 255;
-                b = 0;
-            } else {
-                r = 255;
-                g = 255 - (percent - 0.75) * 4 * 255;
-                b = 0;
-            }
-
-            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
-            ctx.fillRect(width - 1, height - i * barHeight, 1, barHeight);
+            // Pastel rainbow
+            const hue = percent * 300; //
+            const saturation = 90;
+            const lightness = 70;
+            
+            ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            ctx.fillRect(width - 1, height - (i + 1) * barHeight, 1, barHeight + 1);
         }
     }
 
