@@ -16,6 +16,8 @@ class SoundExplorer {
         this.mapBackgroundUrl = null;
         this.currentAudio = null;
         this.draggedRecording = null;
+        this.touchDraggedRecording = null; // For touch drag-and-drop
+        this.touchGhostElement = null; // For touch drag-and-drop visual feedback
         this.mapPositions = {}; // Store positions of recordings on map
         this.mapActiveTags = [];
         
@@ -215,6 +217,10 @@ class SoundExplorer {
         });
 
         window.addEventListener('resize', () => this.resizeMapToImage());
+        
+        // Add global touch handlers for drag-and-drop
+        window.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        window.addEventListener('touchend', this.handleTouchEnd.bind(this));
     }
 
     async initAudio() {
@@ -570,6 +576,88 @@ class SoundExplorer {
         };
     }
 
+    // --- Touch Drag and Drop Handlers ---
+
+    handleTouchStart(e, recordingId) {
+        // Prevent if clicking the remove button on a pin
+        if (e.target.closest('.map-pin-remove')) return;
+
+        // Use a more reliable check for the target element
+        const originalElement = e.target.closest('.map-recording-item, .map-pin');
+        if (!originalElement) return;
+
+        // Prevent default touch actions like scrolling
+        e.preventDefault();
+        
+        this.touchDraggedRecording = recordingId;
+        
+        // Create a visual clone of the element to drag
+        this.touchGhostElement = originalElement.cloneNode(true);
+        this.touchGhostElement.style.position = 'absolute';
+        this.touchGhostElement.style.zIndex = '10000';
+        this.touchGhostElement.style.opacity = '0.7';
+        this.touchGhostElement.style.pointerEvents = 'none'; // So it doesn't interfere with elementFromPoint
+        this.touchGhostElement.style.width = `${originalElement.offsetWidth}px`;
+        this.touchGhostElement.style.height = `${originalElement.offsetHeight}px`;
+        
+        document.body.appendChild(this.touchGhostElement);
+        
+        this.updateGhostPosition(e.touches[0]);
+    }
+
+    updateGhostPosition(touch) {
+        if (!this.touchGhostElement) return;
+        // Center the ghost element on the finger
+        this.touchGhostElement.style.left = `${touch.clientX - this.touchGhostElement.offsetWidth / 2}px`;
+        this.touchGhostElement.style.top = `${touch.clientY - this.touchGhostElement.offsetHeight / 2}px`;
+    }
+
+    handleTouchMove(e) {
+        if (!this.touchDraggedRecording || !this.touchGhostElement) return;
+        
+        e.preventDefault(); // Explicitly prevent scrolling
+        
+        this.updateGhostPosition(e.touches[0]);
+        
+        const mapContainer = document.getElementById('mapContainer');
+        const elementUnderTouch = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+        
+        // Add drag-over visual feedback to the map
+        if (mapContainer.contains(elementUnderTouch)) {
+            mapContainer.classList.add('drag-over');
+        } else {
+            mapContainer.classList.remove('drag-over');
+        }
+    }
+
+    handleTouchEnd(e) {
+        if (!this.touchDraggedRecording || !this.touchGhostElement) return;
+        
+        const mapContainer = document.getElementById('mapContainer');
+        mapContainer.classList.remove('drag-over');
+        
+        const touch = e.changedTouches[0];
+        const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        // Check if the drop happened on the map
+        if (mapContainer.contains(elementUnderTouch)) {
+            const rect = mapContainer.getBoundingClientRect();
+            const x = ((touch.clientX - rect.left) / rect.width) * 100;
+            const y = ((touch.clientY - rect.top) / rect.height) * 100;
+            
+            // Clamp coordinates to stay within map bounds
+            const clampedX = Math.max(5, Math.min(95, x));
+            const clampedY = Math.max(5, Math.min(95, y));
+            
+            this.addToMap(this.touchDraggedRecording, clampedX, clampedY);
+        }
+        
+        // Cleanup
+        document.body.removeChild(this.touchGhostElement);
+        this.touchGhostElement = null;
+        this.touchDraggedRecording = null;
+    }
+
     renderMap() {
         const overlay = document.getElementById('mapOverlay');
         const emptyState = document.getElementById('mapEmptyState');
@@ -610,10 +698,13 @@ class SoundExplorer {
                 this.playRecording(pin.dataset.id);
             });
             
-            // Add drag listeners for repositioning
+            // Add drag listeners for repositioning (mouse)
             pin.addEventListener('dragstart', (e) => {
                 this.draggedRecording = pin.dataset.id;
             });
+
+            // Add touch listener for repositioning (touch devices)
+            pin.addEventListener('touchstart', (e) => this.handleTouchStart(e, pin.dataset.id), { passive: false });
         });
 
         // Add remove button listeners with stopPropagation
@@ -647,6 +738,7 @@ class SoundExplorer {
         recordingsGrid.querySelectorAll('.map-recording-item').forEach(item=>{
             item.addEventListener('dragstart', (e) => { this.draggedRecording = item.dataset.id; e.dataTransfer.effectAllowed='move'; item.style.opacity='0.5'; });
             item.addEventListener('dragend', () => { item.style.opacity='1'; });
+            item.addEventListener('touchstart', (e) => this.handleTouchStart(e, item.dataset.id), { passive: false });
         });
 
         // Setup drop zone on map container
