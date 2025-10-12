@@ -16,7 +16,7 @@ class SoundExplorer {
         this.mapBackgroundUrl = null;
         this.currentAudio = null;
         this.draggedRecording = null;
-        this.touchDraggedRecording = null; // For touch drag-and-drop
+        this.touchDragState = {}; // For tap vs. drag detection on touch devices
         this.touchGhostElement = null; // For touch drag-and-drop visual feedback
         this.mapPositions = {}; // Store positions of recordings on map
         this.mapActiveTags = [];
@@ -582,27 +582,18 @@ class SoundExplorer {
         // Prevent if clicking the remove button on a pin
         if (e.target.closest('.map-pin-remove')) return;
 
-        // Use a more reliable check for the target element
         const originalElement = e.target.closest('.map-recording-item, .map-pin');
         if (!originalElement) return;
 
-        // Prevent default touch actions like scrolling
-        e.preventDefault();
-        
-        this.touchDraggedRecording = recordingId;
-        
-        // Create a visual clone of the element to drag
-        this.touchGhostElement = originalElement.cloneNode(true);
-        this.touchGhostElement.style.position = 'absolute';
-        this.touchGhostElement.style.zIndex = '10000';
-        this.touchGhostElement.style.opacity = '0.7';
-        this.touchGhostElement.style.pointerEvents = 'none'; // So it doesn't interfere with elementFromPoint
-        this.touchGhostElement.style.width = `${originalElement.offsetWidth}px`;
-        this.touchGhostElement.style.height = `${originalElement.offsetHeight}px`;
-        
-        document.body.appendChild(this.touchGhostElement);
-        
-        this.updateGhostPosition(e.touches[0]);
+        const touch = e.touches[0];
+        this.touchDragState = {
+            recordingId,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            startTime: Date.now(),
+            isDragging: false,
+            originalElement,
+        };
     }
 
     updateGhostPosition(touch) {
@@ -613,49 +604,78 @@ class SoundExplorer {
     }
 
     handleTouchMove(e) {
-        if (!this.touchDraggedRecording || !this.touchGhostElement) return;
+        if (!this.touchDragState.recordingId) return;
+
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - this.touchDragState.startX;
+        const deltaY = touch.clientY - this.touchDragState.startY;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        if (!this.touchDragState.isDragging && distance > 10) {
+            this.touchDragState.isDragging = true;
+            
+            // Create ghost element now that we know it's a drag
+            const originalElement = this.touchDragState.originalElement;
+            this.touchGhostElement = originalElement.cloneNode(true);
+            this.touchGhostElement.style.position = 'absolute';
+            this.touchGhostElement.style.zIndex = '10000';
+            this.touchGhostElement.style.opacity = '0.7';
+            this.touchGhostElement.style.pointerEvents = 'none';
+            this.touchGhostElement.style.width = `${originalElement.offsetWidth}px`;
+            this.touchGhostElement.style.height = `${originalElement.offsetHeight}px`;
+            document.body.appendChild(this.touchGhostElement);
+        }
         
-        e.preventDefault(); // Explicitly prevent scrolling
-        
-        this.updateGhostPosition(e.touches[0]);
-        
-        const mapContainer = document.getElementById('mapContainer');
-        const elementUnderTouch = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-        
-        // Add drag-over visual feedback to the map
-        if (mapContainer.contains(elementUnderTouch)) {
-            mapContainer.classList.add('drag-over');
-        } else {
-            mapContainer.classList.remove('drag-over');
+        if (this.touchDragState.isDragging) {
+            e.preventDefault(); // Prevent scrolling only when dragging
+            this.updateGhostPosition(e.touches[0]);
+            
+            const mapContainer = document.getElementById('mapContainer');
+            const elementUnderTouch = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+            
+            if (mapContainer.contains(elementUnderTouch)) {
+                mapContainer.classList.add('drag-over');
+            } else {
+                mapContainer.classList.remove('drag-over');
+            }
         }
     }
 
     handleTouchEnd(e) {
-        if (!this.touchDraggedRecording || !this.touchGhostElement) return;
+        if (!this.touchDragState.recordingId) return;
         
         const mapContainer = document.getElementById('mapContainer');
         mapContainer.classList.remove('drag-over');
         
-        const touch = e.changedTouches[0];
-        const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
-        
-        // Check if the drop happened on the map
-        if (mapContainer.contains(elementUnderTouch)) {
-            const rect = mapContainer.getBoundingClientRect();
-            const x = ((touch.clientX - rect.left) / rect.width) * 100;
-            const y = ((touch.clientY - rect.top) / rect.height) * 100;
+        if (this.touchDragState.isDragging) {
+            const touch = e.changedTouches[0];
+            const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
             
-            // Clamp coordinates to stay within map bounds
-            const clampedX = Math.max(5, Math.min(95, x));
-            const clampedY = Math.max(5, Math.min(95, y));
+            if (mapContainer.contains(elementUnderTouch)) {
+                const rect = mapContainer.getBoundingClientRect();
+                const x = ((touch.clientX - rect.left) / rect.width) * 100;
+                const y = ((touch.clientY - rect.top) / rect.height) * 100;
+                
+                const clampedX = Math.max(5, Math.min(95, x));
+                const clampedY = Math.max(5, Math.min(95, y));
+                
+                this.addToMap(this.touchDragState.recordingId, clampedX, clampedY);
+            }
             
-            this.addToMap(this.touchDraggedRecording, clampedX, clampedY);
+            if (this.touchGhostElement) {
+                document.body.removeChild(this.touchGhostElement);
+                this.touchGhostElement = null;
+            }
+        } else {
+            // It's a tap, not a drag
+            const duration = Date.now() - this.touchDragState.startTime;
+            if (duration < 300) { // Consider it a tap if less than 300ms
+                this.playRecording(this.touchDragState.recordingId);
+            }
         }
         
         // Cleanup
-        document.body.removeChild(this.touchGhostElement);
-        this.touchGhostElement = null;
-        this.touchDraggedRecording = null;
+        this.touchDragState = {};
     }
 
     renderMap() {
@@ -694,7 +714,10 @@ class SoundExplorer {
 
         // Add click listeners to pins for playing
         overlay.querySelectorAll('.map-pin').forEach(pin => {
-            pin.addEventListener('click', () => {
+            // Click handler for mouse users
+            pin.addEventListener('click', (e) => {
+                // Prevent click if it was part of a drag-and-drop
+                if(e.detail === 0) return;
                 this.playRecording(pin.dataset.id);
             });
             
