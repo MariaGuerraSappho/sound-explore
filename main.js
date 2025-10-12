@@ -611,7 +611,8 @@ class SoundExplorer {
         const deltaY = touch.clientY - this.touchDragState.startY;
         const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        if (!this.touchDragState.isDragging && distance > 10) {
+        // Increased distance threshold to better differentiate tap from drag
+        if (!this.touchDragState.isDragging && distance > 15) {
             this.touchDragState.isDragging = true;
             
             // Create ghost element now that we know it's a drag
