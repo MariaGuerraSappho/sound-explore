@@ -20,6 +20,9 @@ class SoundExplorer {
         this.touchGhostElement = null; // For touch drag-and-drop visual feedback
         this.mapPositions = {}; // Store positions of recordings on map
         this.mapActiveTags = [];
+        this.mapShowPictures = false; // For map photo toggle
+        this.currentPhotoDataUrl = null;
+        this.cameraStream = null;
         
         // Sound Hunt missions
         this.missions = [
@@ -148,6 +151,10 @@ class SoundExplorer {
             btn.addEventListener('click', () => btn.classList.toggle('active'));
         });
 
+        // Camera modal
+        document.getElementById('takePicture').addEventListener('click', () => this.takePicture());
+        document.getElementById('skipPicture').addEventListener('click', () => this.skipPicture());
+
         // Gallery
         document.getElementById('searchInput').addEventListener('input', (e) => {
             this.filterGallery(e.target.value);
@@ -181,6 +188,11 @@ class SoundExplorer {
         });
 
         document.getElementById('clearDataBtn').addEventListener('click', () => this.confirmClearData());
+
+        // Photo view modal
+        document.getElementById('closePhotoView').addEventListener('click', () => {
+            document.getElementById('photoViewModal').classList.add('hidden');
+        });
 
         // Confirm modal
         document.getElementById('confirmCancel').addEventListener('click', () => {
@@ -310,7 +322,57 @@ class SoundExplorer {
             duration: Date.now() - this.recordingStartTime
         };
 
-        // Show label modal
+        // Show camera modal
+        this.showCameraModal();
+    }
+
+    async showCameraModal() {
+        const modal = document.getElementById('cameraModal');
+        modal.classList.remove('hidden');
+        const video = document.getElementById('cameraFeed');
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                video.play();
+            };
+            this.cameraStream = stream;
+        } catch (err) {
+            console.error("Error accessing camera: ", err);
+            alert("Could not access the camera. Please check permissions. Skipping photo step.");
+            this.skipPicture();
+        }
+    }
+
+    closeCameraModal() {
+        if (this.cameraStream) {
+            this.cameraStream.getTracks().forEach(track => track.stop());
+            this.cameraStream = null;
+        }
+        const video = document.getElementById('cameraFeed');
+        video.srcObject = null;
+        document.getElementById('cameraModal').classList.add('hidden');
+    }
+
+    takePicture() {
+        const video = document.getElementById('cameraFeed');
+        const canvas = document.getElementById('cameraCanvas');
+        const context = canvas.getContext('2d');
+        
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        this.currentPhotoDataUrl = canvas.toDataURL('image/jpeg');
+        
+        this.closeCameraModal();
+        this.showLabelModal();
+    }
+
+    skipPicture() {
+        this.currentPhotoDataUrl = null;
+        this.closeCameraModal();
         this.showLabelModal();
     }
 
@@ -318,6 +380,14 @@ class SoundExplorer {
         document.getElementById('labelModal').classList.remove('hidden');
         document.getElementById('labelInput').value = '';
         document.getElementById('labelInput').focus();
+
+        const previewImg = document.getElementById('soundImagePreview');
+        if (this.currentPhotoDataUrl) {
+            previewImg.src = this.currentPhotoDataUrl;
+            previewImg.style.display = 'block';
+        } else {
+            previewImg.style.display = 'none';
+        }
         
         // Reset tags
         document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -328,6 +398,7 @@ class SoundExplorer {
     closeLabelModal() {
         document.getElementById('labelModal').classList.add('hidden');
         this.currentRecording = null;
+        this.currentPhotoDataUrl = null;
     }
 
     async saveRecording() {
@@ -339,7 +410,8 @@ class SoundExplorer {
             ...this.currentRecording,
             label,
             tags,
-            id: Date.now().toString()
+            id: Date.now().toString(),
+            photoDataUrl: this.currentPhotoDataUrl
         };
 
         // Save to storage
@@ -353,6 +425,14 @@ class SoundExplorer {
 
         // Switch to gallery to show the new recording
         this.switchTab('gallery');
+    }
+
+    showPhoto(id) {
+        const recording = this.recordings.find(r => r.id === id);
+        if (!recording || !recording.photoDataUrl) return;
+
+        document.getElementById('photoViewImage').src = recording.photoDataUrl;
+        document.getElementById('photoViewModal').classList.remove('hidden');
     }
 
     checkMissions(recording) {
@@ -443,6 +523,7 @@ class SoundExplorer {
         grid.innerHTML = this.recordings.map(rec => `
             <div class="sound-card" data-id="${rec.id}">
                 <img src="${rec.thumbnail}" alt="${rec.label}" class="sound-card-image">
+                ${rec.photoDataUrl ? `<button class="btn-show-photo" data-id="${rec.id}" aria-label="Show photo">📷</button>` : ''}
                 <div class="sound-card-content">
                     <h3 class="sound-card-label">${rec.label}</h3>
                     <div class="sound-card-meta">
@@ -464,6 +545,11 @@ class SoundExplorer {
         // Add play button listeners
         grid.querySelectorAll('.btn-play').forEach(btn => {
             btn.addEventListener('click', () => this.playRecording(btn.dataset.id));
+        });
+
+        // Add photo view button listeners
+        grid.querySelectorAll('.btn-show-photo').forEach(btn => {
+            btn.addEventListener('click', () => this.showPhoto(btn.dataset.id));
         });
 
         // Render filter tags
@@ -672,6 +758,19 @@ class SoundExplorer {
             
             const pos = this.mapPositions[recId];
             
+            if (this.mapShowPictures && rec.photoDataUrl) {
+                return `
+                    <div class="map-pin photo-pin" 
+                         style="left: ${pos.x}%; top: ${pos.y}%;" 
+                         data-id="${rec.id}"
+                         draggable="true">
+                        <img src="${rec.photoDataUrl}" alt="${rec.label}" class="map-pin-photo">
+                        <span class="map-pin-label">${rec.label}</span>
+                        <button class="map-pin-remove" data-id="${rec.id}">×</button>
+                    </div>
+                `;
+            }
+
             return `
                 <div class="map-pin" 
                      style="left: ${pos.x}%; top: ${pos.y}%; background: ${pos.color || '#8b5cf6'};" 
@@ -712,8 +811,21 @@ class SoundExplorer {
 
         // Render draggable recordings list
         const allTags = [...new Set(this.recordings.flatMap(r => r.tags || []))];
-        filterBar.innerHTML = allTags.map(t => `<button class="filter-tag ${this.mapActiveTags.includes(t)?'active':''}" data-tag="${t}">${t}</button>`).join('');
-        filterBar.querySelectorAll('.filter-tag').forEach(btn=>{
+        
+        // Add the toggle button to the filter bar
+        const toggleBtnHtml = `
+            <button class="filter-tag toggle-photo-btn ${this.mapShowPictures ? 'active' : ''}" id="mapPhotoToggle">
+                ${this.mapShowPictures ? '📷 Hide Pictures' : '🖼️ Show Pictures'}
+            </button>`;
+
+        filterBar.innerHTML = toggleBtnHtml + allTags.map(t => `<button class="filter-tag ${this.mapActiveTags.includes(t)?'active':''}" data-tag="${t}">${t}</button>`).join('');
+        
+        document.getElementById('mapPhotoToggle').onclick = () => {
+            this.mapShowPictures = !this.mapShowPictures;
+            this.renderMap();
+        };
+
+        filterBar.querySelectorAll('.filter-tag[data-tag]').forEach(btn=>{
             btn.onclick=()=>{ const tag=btn.dataset.tag; const idx=this.mapActiveTags.indexOf(tag);
                 if(idx>-1){ this.mapActiveTags.splice(idx,1); btn.classList.remove('active'); } else { this.mapActiveTags.push(tag); btn.classList.add('active'); }
                 this.renderMap();

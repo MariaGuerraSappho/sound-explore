@@ -589,6 +589,7 @@ body {
     overflow: hidden;
     box-shadow: 0 12px 30px rgba(12,14,20,0.06);
     transition: transform 0.18s ease, box-shadow 0.18s ease;
+    position: relative;
 }
 
 .sound-card:hover {
@@ -601,6 +602,38 @@ body {
     height: 180px;
     object-fit: cover;
     background: #000;
+}
+
+.sound-preview-image {
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    background-color: var(--border-color);
+}
+
+.btn-show-photo {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
+    z-index: 2;
+}
+
+.btn-show-photo:hover {
+    background: rgba(0, 0, 0, 0.8);
 }
 
 .sound-card-content {
@@ -727,6 +760,21 @@ body {
 .map-pin:hover {
     transform: translate(-50%, -50%) scale(1.15);
     box-shadow: 0 26px 50px rgba(12,14,20,0.16);
+}
+
+.photo-pin {
+    width: 80px;
+    height: 80px;
+    background: white;
+    border: 3px solid white;
+    padding: 0;
+}
+
+.map-pin-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
 }
 
 .map-legend {
@@ -969,6 +1017,25 @@ body {
     width: 100%;
     max-height: 90vh;
     overflow-y: auto;
+}
+
+.camera-container {
+    position: relative;
+    width: 100%;
+    padding-top: 75%; /* 4:3 Aspect Ratio */
+    background-color: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+
+#cameraFeed {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .modal-content h2 {
@@ -1417,4 +1484,15 @@ input:focus-visible,
     background: var(--primary-color);
     color: #fff;
     border-color: var(--primary-color);
+}
+
+.toggle-photo-btn {
+    background: var(--surface-color) !important;
+    color: var(--text-color) !important;
+    border-color: var(--primary-color) !important;
+}
+
+.toggle-photo-btn.active {
+    background: var(--primary-color) !important;
+    color: white !important;
 }

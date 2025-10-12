@@ -5,6 +5,7 @@ export class Exporter {
     const zip = new JSZip();
     const soundsFolder = zip.folder('sounds');
     const thumbsFolder = zip.folder('thumbnails');
+    const photosFolder = zip.folder('photos');
     const imagesFolder = zip.folder('images');
 
     const sanitize = (s) => s.replace(/[^a-z0-9\\-_\\s]/gi, '').trim().replace(/\\s+/g, '_');
@@ -20,6 +21,13 @@ export class Exporter {
       soundsFolder.file(`${name}.wav`, audioBlob);
       thumbsFolder.file(`${name}.png`, thumbBlob);
 
+      let photoPath = null;
+      if (rec.photoDataUrl) {
+          photoPath = `photos/${name}.jpg`;
+          const photoBlob = await toBlob(rec.photoDataUrl);
+          photosFolder.file(`${name}.jpg`, photoBlob);
+      }
+
       items.push({
         id: rec.id,
         label: rec.label,
@@ -28,6 +36,7 @@ export class Exporter {
         durationMs: rec.duration,
         audio: `sounds/${name}.wav`,
         thumbnail: `thumbnails/${name}.png`,
+        photo: photoPath,
         map: mapPositions[rec.id] || null
       });
       // per-sound note with tags
@@ -42,7 +51,7 @@ export class Exporter {
 
     zip.file('metadata.json', JSON.stringify({ items }, null, 2));
     // CSV summary
-    const csv = ['id,label,timestamp,duration_seconds,tags,audio,thumbnail,x,y,color'].concat(
+    const csv = ['id,label,timestamp,duration_seconds,tags,audio,thumbnail,photo,x,y,color'].concat(
       items.map(it => [
         it.id,
         `"${(it.label||'').replace(/"/g,'""')}"`,
@@ -51,6 +60,7 @@ export class Exporter {
         `"${(it.tags||[]).join('|').replace(/"/g,'""')}"`,
         it.audio,
         it.thumbnail,
+        it.photo ?? '',
         it.map?.x ?? '',
         it.map?.y ?? '',
         it.map?.color ?? ''
@@ -120,7 +130,7 @@ export class Exporter {
     }
     function card(item){
       const c = document.createElement('div'); c.className='card';
-      const img = document.createElement('img'); img.className='thumb'; img.src=item.thumbnail; img.alt=item.label; c.appendChild(img);
+      const img = document.createElement('img'); img.className='thumb'; img.src=item.photo || item.thumbnail; img.alt=item.label; c.appendChild(img);
       const ct = document.createElement('div'); ct.className='content';
       const h = document.createElement('div'); h.className='label'; h.textContent=item.label; ct.appendChild(h);
       const meta = document.createElement('div'); meta.style.fontSize='12px'; meta.style.color='#555'; meta.textContent = new Date(item.timestamp).toLocaleString() + ' • ' + Math.round((item.durationMs||0)/1000) + 's'; ct.appendChild(meta);
