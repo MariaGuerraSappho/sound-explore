@@ -18,6 +18,7 @@ export class AudioProcessor {
     this.smoothness = 0.5;
 
     this.mediaDest = null;        // ★ for recording processed audio
+    this.preamp = null;           // ★ extra gain stage for low-input devices
   }
 
   async init(stream) {
@@ -32,14 +33,19 @@ export class AudioProcessor {
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = this.fftSize;
       this.analyser.smoothingTimeConstant = 0.8;
+      this.analyser.minDecibels = -120;            // ★ increase sensitivity
+      this.analyser.maxDecibels = -10;             // ★ widen range
       this.bufferLength = this.analyser.frequencyBinCount;
       this.dataArray = new Uint8Array(this.bufferLength);
 
       this.gainNode = this.audioContext.createGain();
       this.gainNode.gain.value = 1;
 
-      // Connect: microphone -> gain -> analyser
-      this.microphone.connect(this.gainNode);
+      // Connect: microphone -> preamp -> gain -> analyser (+ recorder)
+      this.preamp = this.audioContext.createGain();            // ★
+      this.preamp.gain.value = 1;                              // ★
+      this.microphone.connect(this.preamp);                    // ★
+      this.preamp.connect(this.gainNode);                      // ★
       this.gainNode.connect(this.analyser);
 
       // ★ Route to destination so you can hear it (comment this if you don't want live monitoring)
@@ -80,7 +86,11 @@ export class AudioProcessor {
 
   setGain(value) {
     if (this.gainNode) {
-      this.gainNode.gain.setTargetAtTime(parseFloat(value), this.audioContext.currentTime, 0.01);
+      const v = Math.max(0.1, parseFloat(value) || 1);
+      const mapped = Math.min(400, v * v);        // ★ strong non-linear boost up to 400x
+      if (this.preamp) {
+        this.preamp.gain.setTargetAtTime(mapped, this.audioContext.currentTime, 0.01);
+      }
     }
   }
 
