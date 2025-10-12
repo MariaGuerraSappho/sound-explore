@@ -11,26 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
-    <!-- Onboarding Overlay -->
-    <div id="onboarding" class="onboarding hidden">
-        <div class="onboarding-content">
-            <div class="onboarding-step" data-step="1">
-                <div class="onboarding-icon"></div>
-                <h2>Let's Explore Sounds!</h2>
-                <p>First, we need permission to use your microphone so we can hear the sounds around you.</p>
-                <button class="btn-primary btn-large" id="allowMicBtn">Allow Microphone</button>
-            </div>
-            <div class="onboarding-step hidden" data-step="2">
-                <div class="onboarding-icon"></div>
-                <h2>Amazing! Now You're Ready!</h2>
-                <p>Watch the colors dance to the sounds around you. When you hear something cool, tap the big red RECORD button!</p>
-                <button class="btn-primary btn-large" id="startExploringBtn">Start Exploring</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Main App Container -->
-    <div id="app" class="app hidden">
+    <div id="app" class="app">
         <!-- Header -->
         <header class="app-header">
             <h1>Sound Explorer</h1>
@@ -203,8 +185,7 @@
             </div>
 
             <div class="setting-group">
-                <button class="btn-secondary" id="exportDataBtn">Export Package (ZIP)</button>
-                <button class="btn-secondary" id="sharePackageBtn">Share Package</button>
+                <button class="btn-secondary" id="exportDataBtn">Download Project Data (ZIP)</button>
                 <button class="btn-secondary" id="importDataBtn">Import Package</button>
                 <input type="file" id="importDataFile" accept=".zip" class="file-input hidden">
             </div>

@@ -79,24 +79,24 @@ class SoundExplorer {
             },
             {
                 id: 'rumble-ranger',
-                name: 'Rumble Ranger',
-                description: 'Record a low, rumbling sound',
+                name: 'Low Sounds!',
+                description: 'Record any low sound',
                 icon: '',
                 check: (chars) => {
                     const avgLow = chars.reduce((sum, c) => sum + c.lowAvg, 0) / chars.length;
                     const avgHigh = chars.reduce((sum, c) => sum + c.highAvg, 0) / chars.length;
-                    return avgLow > 50 && avgLow > avgHigh * 1.3;
+                    return avgLow > 40 && avgLow > avgHigh * 1.3;
                 }
             },
             {
                 id: 'chirp-chaser',
-                name: 'Chirp Chaser',
-                description: 'Record a high, chirping sound',
+                name: 'High Sounds!',
+                description: 'Record any high sound',
                 icon: '',
                 check: (chars) => {
                     const avgHigh = chars.reduce((sum, c) => sum + c.highAvg, 0) / chars.length;
                     const avgLow = chars.reduce((sum, c) => sum + c.lowAvg, 0) / chars.length;
-                    return avgHigh > 50 && avgHigh > avgLow * 1.3;
+                    return avgHigh > 40 && avgHigh > avgLow * 1.3;
                 }
             }
         ];
@@ -107,49 +107,21 @@ class SoundExplorer {
     }
 
     async init() {
-        // Check if first run
-        const hasSeenOnboarding = await this.storage.get('hasSeenOnboarding');
-        
-        if (!hasSeenOnboarding) {
-            this.showOnboarding();
-        } else {
-            await this.loadSettings();
-            await this.loadRecordings();
-            this.showApp();
-        }
-        
+        await this.loadSettings();
+        await this.loadRecordings();
         this.setupEventListeners();
-        
-        // Remove service worker registration due to hosting environment limitations
     }
 
     showOnboarding() {
-        document.getElementById('onboarding').classList.remove('hidden');
-        document.getElementById('app').classList.add('hidden');
+        // This function is no longer needed.
     }
 
     showApp() {
-        document.getElementById('onboarding').classList.add('hidden');
-        document.getElementById('app').classList.remove('hidden');
+        // This function is no longer needed.
     }
 
     setupEventListeners() {
-        // Onboarding
-        document.getElementById('allowMicBtn').addEventListener('click', async () => {
-            try {
-                await this.initAudio();
-                document.querySelector('[data-step="1"]').classList.add('hidden');
-                document.querySelector('[data-step="2"]').classList.remove('hidden');
-            } catch (error) {
-                alert('Could not access microphone. Please check permissions.');
-                console.error(error);
-            }
-        });
-
-        document.getElementById('startExploringBtn').addEventListener('click', async () => {
-            await this.storage.set('hasSeenOnboarding', true);
-            this.showApp();
-        });
+        // Onboarding listeners are removed as the onboarding screen is gone.
 
         // Tab navigation
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -201,7 +173,6 @@ class SoundExplorer {
         });
 
         document.getElementById('exportDataBtn').addEventListener('click', () => this.exportPackage());
-        document.getElementById('sharePackageBtn').addEventListener('click', () => this.exportPackage(true));
         document.getElementById('importDataBtn').addEventListener('click', () => {
             document.getElementById('importDataFile').click();
         });
@@ -876,19 +847,14 @@ class SoundExplorer {
         reader.readAsDataURL(file);
     }
 
-    async exportPackage(share = false) {
+    async exportPackage() {
         const exporter = new Exporter();
         const { blob, filename } = await exporter.createZip({
             recordings: this.recordings,
             mapPositions: this.mapPositions,
             mapBackgroundUrl: this.mapBackgroundUrl
         });
-        const file = new File([blob], filename, { type: 'application/zip' });
-
-        if (share && navigator.canShare && navigator.canShare({ files: [file] })) {
-            try { await navigator.share({ files: [file], title: 'Sound Explorer Package' }); } catch {}
-            return;
-        }
+        
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = filename; a.click();
