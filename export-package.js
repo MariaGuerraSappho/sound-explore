@@ -89,6 +89,8 @@ export class Exporter {
   .overlay{position:absolute;inset:0}
   .pin{position:absolute;width:40px;height:40px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 6px 16px rgba(0,0,0,.15);cursor:pointer;border:2px solid rgba(255,255,255,.9)}
   .pin:hover{transform:translate(-50%,-50%) scale(1.05)}
+  .photo-pin{width:80px;height:80px;background:#fff;border:3px solid #fff;padding:0}
+  .map-pin-photo{width:100%;height:100%;object-fit:cover;border-radius:50%}
   .pin-label{position:absolute;bottom:-28px;left:50%;transform:translateX(-50%);font-size:12px;background:rgba(0,0,0,.8);color:#fff;padding:2px 6px;border-radius:6px;white-space:nowrap}
   .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
   .card{border:1px solid #eee;border-radius:12px;overflow:hidden;background:#fff}
@@ -100,12 +102,14 @@ export class Exporter {
   .controls{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#111;color:#fff;cursor:pointer}
   button.secondary{background:#fff;color:#111}
+  button.active{background:#111;color:#fff}
   .note{font-size:12px;color:#555;margin-top:6px}
 </style>
 </head><body>
 <header>
   <h1>Sound Explorer Package</h1>
   <div>
+    <button id="photoToggle" class="secondary">Show Pictures</button>
     <button id="playAll" class="secondary">Play All</button>
     <a href="summary.csv" class="secondary" style="text-decoration:none;padding:8px 12px;border:1px solid #ddd;border-radius:8px;margin-left:8px">Download CSV</a>
   </div>
@@ -117,17 +121,42 @@ export class Exporter {
 <script>
   const ITEMS = ${JSON.stringify(items)};
   (function(){
-    const overlay = document.getElementById('overlay'); const list = document.getElementById('list');
+    const overlay = document.getElementById('overlay');
+    const list = document.getElementById('list');
+    const photoToggleBtn = document.getElementById('photoToggle');
+    let showPictures = false;
+
     function play(src){ audio.src = src; audio.play(); }
+
     function makePin(item){
       const d = item.map || {x: 15 + (parseInt(item.id)%70), y: 20 + (parseInt(item.id)%60), color: 'hsl(' + (parseInt(item.id)%360) + ',75%,55%)'};
-      const el = document.createElement('div'); el.className='pin';
-      el.style.left = d.x + '%'; el.style.top = d.y + '%'; el.style.background = d.color || 'hsl(' + (parseInt(item.id)%360) + ',75%,55%)';
+      const el = document.createElement('div');
+      
+      if (showPictures && item.photo) {
+          el.className='pin photo-pin';
+          el.style.left = d.x + '%'; el.style.top = d.y + '%';
+          const img = document.createElement('img');
+          img.src = item.photo;
+          img.alt = item.label;
+          img.className = 'map-pin-photo';
+          el.appendChild(img);
+      } else {
+          el.className='pin';
+          el.style.left = d.x + '%'; el.style.top = d.y + '%';
+          el.style.background = d.color || 'hsl(' + (parseInt(item.id)%360) + ',75%,55%)';
+      }
+      
       const label = document.createElement('div'); label.className='pin-label'; label.textContent = item.label; el.appendChild(label);
       el.title = 'Tags: ' + ((item.tags||[]).join(', ') || 'None');
       el.addEventListener('click', ()=> play(item.audio));
       return el;
     }
+
+    function renderMap() {
+        overlay.innerHTML = '';
+        ITEMS.forEach(it=> overlay.appendChild(makePin(it)));
+    }
+
     function card(item){
       const c = document.createElement('div'); c.className='card';
       const img = document.createElement('img'); img.className='thumb'; img.src=item.photo || item.thumbnail; img.alt=item.label; c.appendChild(img);
@@ -144,8 +173,16 @@ export class Exporter {
       ctrl.appendChild(p); ctrl.appendChild(dl); ctrl.appendChild(nt); ct.appendChild(ctrl); c.appendChild(ct); return c;
     }
     const audio = new Audio();
-    ITEMS.forEach(it=> overlay.appendChild(makePin(it)));
+    renderMap();
     ITEMS.forEach(it=> list.appendChild(card(it)));
+    
+    photoToggleBtn.addEventListener('click', () => {
+        showPictures = !showPictures;
+        photoToggleBtn.textContent = showPictures ? 'Hide Pictures' : 'Show Pictures';
+        photoToggleBtn.classList.toggle('active', showPictures);
+        renderMap();
+    });
+
     document.getElementById('playAll').addEventListener('click', async ()=>{
       for(const it of ITEMS){ await new Promise(r=>{ audio.onended=r; play(it.audio); }); }
     });

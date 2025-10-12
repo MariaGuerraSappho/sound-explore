@@ -99,7 +99,7 @@ class SoundExplorer {
                 check: (chars) => {
                     const avgHigh = chars.reduce((sum, c) => sum + c.highAvg, 0) / chars.length;
                     const avgLow = chars.reduce((sum, c) => sum + c.lowAvg, 0) / chars.length;
-                    return avgHigh > 40 && avgHigh > avgLow * 1.3;
+                    return avgHigh > 35 && avgHigh > avgLow * 1.2;
                 }
             }
         ];
