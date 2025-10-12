@@ -206,9 +206,9 @@ class SoundExplorer {
         window.addEventListener('touchend', this.handleTouchEnd.bind(this));
     }
 
-    async initAudio() {
+    async initAudio(preAcquiredStream) {
         this.audioProcessor = new AudioProcessor();
-        await this.audioProcessor.init();
+        await this.audioProcessor.init(preAcquiredStream);
         
         // Don't start visualization automatically - wait for user to click start button
     }
@@ -1047,9 +1047,14 @@ class SoundExplorer {
     async toggleVisualization() {
         if (!this.audioProcessor) {
             try {
-                await this.initAudio();
+                const combined = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+                    video: { facingMode: 'environment' }
+                });
+                combined.getVideoTracks().forEach(t => t.stop()); // pre-grant camera, stop until needed
+                await this.initAudio(combined);
             } catch (error) {
-                alert('Could not access microphone. Please check permissions.');
+                alert('Could not access microphone/camera. Please check permissions.');
                 console.error(error);
                 return;
             }

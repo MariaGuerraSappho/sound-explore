@@ -20,14 +20,14 @@ export class AudioProcessor {
     this.mediaDest = null;        // ★ for recording processed audio
   }
 
-  async init() {
+  async init(stream) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const userStream = stream || await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
       });
 
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      this.microphone = this.audioContext.createMediaStreamSource(stream);
+      this.microphone = this.audioContext.createMediaStreamSource(userStream);
 
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = this.fftSize;
