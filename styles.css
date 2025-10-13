@@ -1531,3 +1531,15 @@ input:focus-visible,
     background: var(--primary-color) !important;
     color: white !important;
 }
+
+.sound-bubble-add {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    border: 2px solid var(--border-color);
+    background: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+}
