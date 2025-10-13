@@ -741,6 +741,41 @@ body {
     bottom: 0;
 }
 
+.map-bubbles {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.75rem 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.sound-bubble {
+    flex: 0 0 auto;
+    width: 72px;
+    text-align: center;
+    user-select: none;
+    cursor: grab;
+}
+
+.sound-bubble-thumb {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: var(--shadow);
+    object-fit: cover;
+    background: #e5e7eb;
+    margin: 0 auto 6px;
+}
+
+.sound-bubble-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .map-pin {
     position: absolute;
     width: 56px;

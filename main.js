@@ -23,6 +23,7 @@ class SoundExplorer {
         this.mapShowPictures = false; // For map photo toggle
         this.currentPhotoDataUrl = null;
         this.cameraStream = null;
+        this.activeAudios = new Set(); // track all playing audios
         
         // Sound Hunt missions
         this.missions = [
@@ -113,6 +114,7 @@ class SoundExplorer {
         await this.loadSettings();
         await this.loadRecordings();
         this.setupEventListeners();
+        await this.startAutoVisualization(); // auto-start mic/camera + sonogram
     }
 
     showOnboarding() {
@@ -132,7 +134,7 @@ class SoundExplorer {
         });
 
         // Visualization start/stop button
-        document.getElementById('vizStartBtn').addEventListener('click', () => this.toggleVisualization());
+        // removed vizStartBtn listener - auto-start on load
 
         // Listen controls - removed smoothness and focus sliders
         document.getElementById('recordBtn').addEventListener('click', () => this.toggleRecording());
@@ -163,6 +165,7 @@ class SoundExplorer {
         // Settings
         document.getElementById('settingsBtn').addEventListener('click', () => this.openSettings());
         document.getElementById('closeSettings').addEventListener('click', () => this.closeSettings());
+        document.getElementById('pauseAllBtn').addEventListener('click', () => this.pauseAllSounds());
         
         document.getElementById('recordingLength').addEventListener('input', (e) => {
             this.recordingDuration = e.target.value * 1000;
@@ -211,6 +214,21 @@ class SoundExplorer {
         await this.audioProcessor.init(preAcquiredStream);
         
         // Don't start visualization automatically - wait for user to click start button
+    }
+
+    async startAutoVisualization() {
+        try {
+            const combined = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+                video: { facingMode: 'environment' }
+            });
+            combined.getVideoTracks().forEach(t => t.stop());
+            await this.initAudio(combined);
+            this.audioProcessor.startVisualization();
+        } catch (error) {
+            console.error('Permissions needed to start audio/camera', error);
+            alert('Please allow microphone and camera to start.');
+        }
     }
 
     switchTab(tab) {
@@ -537,6 +555,7 @@ class SoundExplorer {
                         <button class="btn-play" data-id="${rec.id}">
                             <span>▶️ Play</span>
                         </button>
+                        <button class="btn-secondary btn-delete" data-id="${rec.id}">🗑️ Delete</button>
                     </div>
                 </div>
             </div>
@@ -545,6 +564,10 @@ class SoundExplorer {
         // Add play button listeners
         grid.querySelectorAll('.btn-play').forEach(btn => {
             btn.addEventListener('click', () => this.playRecording(btn.dataset.id));
+        });
+
+        grid.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', () => this.promptDeleteRecording(btn.dataset.id));
         });
 
         // Add photo view button listeners
@@ -604,33 +627,40 @@ class SoundExplorer {
     async playRecording(id) {
         const recording = this.recordings.find(r => r.id === id);
         if (!recording) return;
-
-        // Stop current audio
-        if (this.currentAudio) {
-            this.currentAudio.pause();
-            this.currentAudio = null;
-        }
-
+        if (this.currentAudio) { this.currentAudio.pause(); this.currentAudio = null; }
         const btn = document.querySelector(`.btn-play[data-id="${id}"]`);
-        
-        // Create audio element
         const audio = new Audio(URL.createObjectURL(recording.audioBlob));
-        this.currentAudio = audio;
-
-        if (btn) {
-            btn.classList.add('playing');
-            btn.innerHTML = '<span>⏸️ Playing</span>';
-        }
-
+        this.currentAudio = audio; this.activeAudios.add(audio);
+        if (btn) { btn.classList.add('playing'); btn.innerHTML = '<span>⏸️ Playing</span>'; }
         audio.play();
+        audio.onended = () => { this.activeAudios.delete(audio); if (btn) { btn.classList.remove('playing'); btn.innerHTML = '<span>▶️ Play</span>'; } this.currentAudio = null; };
+    }
 
-        audio.onended = () => {
-            if (btn) {
-                btn.classList.remove('playing');
-                btn.innerHTML = '<span>▶️ Play</span>';
-            }
-            this.currentAudio = null;
+    promptDeleteRecording(id) {
+        const rec = this.recordings.find(r => r.id === id);
+        if (!rec) return;
+        document.getElementById('confirmMessage').textContent = `Delete "${rec.label}"? This cannot be undone.`;
+        const modal = document.getElementById('confirmModal');
+        modal.classList.remove('hidden');
+        document.getElementById('confirmOk').onclick = async () => {
+            await this.deleteRecordingById(id);
+            modal.classList.add('hidden');
+            this.renderGallery();
+            if (this.currentTab === 'map') this.renderMap();
         };
+    }
+
+    async deleteRecordingById(id) {
+        // Stop audio if it's the one playing
+        if (this.currentAudio) this.currentAudio.pause();
+        // Remove from map positions
+        if (this.mapPositions[id]) {
+            delete this.mapPositions[id];
+            await this.storage.set('mapPositions', this.mapPositions);
+        }
+        // Delete from storage and memory
+        await this.storage.deleteRecording(id);
+        this.recordings = this.recordings.filter(r => r.id !== id);
     }
 
     // --- Touch Drag and Drop Handlers ---
@@ -739,8 +769,7 @@ class SoundExplorer {
     renderMap() {
         const overlay = document.getElementById('mapOverlay');
         const emptyState = document.getElementById('mapEmptyState');
-        const recordingsGrid = document.getElementById('mapRecordingsGrid');
-        const filterBar = document.getElementById('mapFilterTags');
+        const bubbles = document.getElementById('mapBubbles');
         
         if (this.mapBackgroundUrl) {
             emptyState.style.display = 'none';
@@ -751,37 +780,37 @@ class SoundExplorer {
         // Get recordings that are placed on the map
         const recordingsOnMap = Object.keys(this.mapPositions);
         
-        // Render recordings on the map
-        overlay.innerHTML = recordingsOnMap.map(recId => {
+        // Render pins on map
+        overlay.innerHTML = Object.keys(this.mapPositions).map(recId => {
             const rec = this.recordings.find(r => r.id === recId);
             if (!rec) return '';
-            
             const pos = this.mapPositions[recId];
-            
-            if (this.mapShowPictures && rec.photoDataUrl) {
-                return `
-                    <div class="map-pin photo-pin" 
-                         style="left: ${pos.x}%; top: ${pos.y}%;" 
-                         data-id="${rec.id}"
-                         draggable="true">
-                        <img src="${rec.photoDataUrl}" alt="${rec.label}" class="map-pin-photo">
-                        <span class="map-pin-label">${rec.label}</span>
-                        <button class="map-pin-remove" data-id="${rec.id}">×</button>
-                    </div>
-                `;
-            }
-
             return `
-                <div class="map-pin" 
-                     style="left: ${pos.x}%; top: ${pos.y}%; background: ${pos.color || '#8b5cf6'};" 
-                     data-id="${rec.id}"
-                     draggable="true">
-                    📍
+                <div class="map-pin ${this.mapShowPictures && rec.photoDataUrl ? 'photo-pin':''}" 
+                     style="left:${pos.x}%;top:${pos.y}%;${!this.mapShowPictures||!rec.photoDataUrl?`background:${pos.color||'#8b5cf6'};`:''}" 
+                     data-id="${rec.id}" draggable="true">
+                    ${this.mapShowPictures && rec.photoDataUrl ? `<img src="${rec.photoDataUrl}" class="map-pin-photo" alt="${rec.label}">` : '📍'}
                     <span class="map-pin-label">${rec.label}</span>
                     <button class="map-pin-remove" data-id="${rec.id}">×</button>
-                </div>
-            `;
+                </div>`;
         }).join('');
+
+        // Build bubbles list: show ALL recordings across the top
+        const all = this.recordings;
+        bubbles.innerHTML = all.map(rec => {
+            const color = this.getColorForRecording(rec.id);
+            const thumb = rec.photoDataUrl || rec.thumbnail || '';
+            return `
+              <div class="sound-bubble" data-id="${rec.id}" draggable="true" title="${rec.label}">
+                <img class="sound-bubble-thumb" src="${thumb}" alt="${rec.label}" onerror="this.style.background='${color}';this.src='';">
+                <div class="sound-bubble-label">${rec.label}</div>
+              </div>`;
+        }).join('');
+        bubbles.querySelectorAll('.sound-bubble').forEach(el=>{
+            el.addEventListener('dragstart',(e)=>{ this.draggedRecording = el.dataset.id; el.style.opacity='0.6'; });
+            el.addEventListener('dragend',()=>{ el.style.opacity='1'; });
+            el.addEventListener('touchstart',(e)=> this.handleTouchStart(e, el.dataset.id), { passive: false });
+        });
 
         // Add click listeners to pins for playing
         overlay.querySelectorAll('.map-pin').forEach(pin => {
@@ -807,45 +836,6 @@ class SoundExplorer {
                 e.stopPropagation();
                 this.removeFromMap(btn.dataset.id);
             });
-        });
-
-        // Render draggable recordings list
-        const allTags = [...new Set(this.recordings.flatMap(r => r.tags || []))];
-        
-        // Add the toggle button to the filter bar
-        const toggleBtnHtml = `
-            <button class="filter-tag toggle-photo-btn ${this.mapShowPictures ? 'active' : ''}" id="mapPhotoToggle">
-                ${this.mapShowPictures ? '📷 Hide Pictures' : '🖼️ Show Pictures'}
-            </button>`;
-
-        filterBar.innerHTML = toggleBtnHtml + allTags.map(t => `<button class="filter-tag ${this.mapActiveTags.includes(t)?'active':''}" data-tag="${t}">${t}</button>`).join('');
-        
-        document.getElementById('mapPhotoToggle').onclick = () => {
-            this.mapShowPictures = !this.mapShowPictures;
-            this.renderMap();
-        };
-
-        filterBar.querySelectorAll('.filter-tag[data-tag]').forEach(btn=>{
-            btn.onclick=()=>{ const tag=btn.dataset.tag; const idx=this.mapActiveTags.indexOf(tag);
-                if(idx>-1){ this.mapActiveTags.splice(idx,1); btn.classList.remove('active'); } else { this.mapActiveTags.push(tag); btn.classList.add('active'); }
-                this.renderMap();
-            };
-        });
-        
-        const list = this.recordings.filter(r => !this.mapPositions[r.id]).filter(r => this.mapActiveTags.length===0 || (r.tags||[]).some(t=>this.mapActiveTags.includes(t)));
-        recordingsGrid.innerHTML = list.map(rec => {
-            const color = this.getColorForRecording(rec.id);
-            return `
-                <div class="map-recording-item" data-id="${rec.id}" draggable="true">
-                    <div class="map-recording-dot" style="background:${color}"></div>
-                    <div class="map-recording-label">${rec.label}</div>
-                </div>`;
-        }).join('');
-
-        recordingsGrid.querySelectorAll('.map-recording-item').forEach(item=>{
-            item.addEventListener('dragstart', (e) => { this.draggedRecording = item.dataset.id; e.dataTransfer.effectAllowed='move'; item.style.opacity='0.5'; });
-            item.addEventListener('dragend', () => { item.style.opacity='1'; });
-            item.addEventListener('touchstart', (e) => this.handleTouchStart(e, item.dataset.id), { passive: false });
         });
 
         // Setup drop zone on map container
@@ -1090,6 +1080,20 @@ class SoundExplorer {
         if (container.clientWidth === 0) { requestAnimationFrame(() => this.resizeMapToImage()); return; }
         const ratio = img.naturalHeight / img.naturalWidth;
         container.style.height = `${Math.round(container.clientWidth * ratio)}px`;
+    }
+
+    pauseAllSounds() {
+        // Pause all tracked Audio objects
+        this.activeAudios.forEach(a => { try { a.pause(); } catch {} });
+        this.activeAudios.clear();
+        this.currentAudio = null;
+        // Also pause any <audio> elements in DOM (fallback)
+        document.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch {} });
+        // Reset UI of all play buttons
+        document.querySelectorAll('.btn-play.playing').forEach(btn => {
+            btn.classList.remove('playing');
+            btn.innerHTML = '<span>▶️ Play</span>';
+        });
     }
 }
 

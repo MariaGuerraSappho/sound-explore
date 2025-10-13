@@ -16,6 +16,7 @@
         <!-- Header -->
         <header class="app-header">
             <h1>Sound Explorer</h1>
+            <button class="btn-primary" id="pauseAllBtn" aria-label="Pause all sounds">⏸ Pause All</button>
             <button class="btn-icon" id="settingsBtn" aria-label="Settings">⚙️</button>
         </header>
 
@@ -49,11 +50,6 @@
                     <span class="level-text" id="levelText">Quiet</span>
                 </div>
             </div>
-
-            <button class="viz-start-btn" id="vizStartBtn">
-                <span class="viz-start-icon">▶️</span>
-                <span class="viz-start-text">START LISTENING</span>
-            </button>
 
             <!-- Controls -->
             <div class="listen-controls">
@@ -101,6 +97,7 @@
         <!-- Map Tab -->
         <div class="tab-content" id="mapTab">
             <div class="map-content-wrapper">
+                <div class="map-bubbles" id="mapBubbles" aria-label="Drag sounds onto the map"></div>
                 <div class="map-container" id="mapContainer">
                     <img id="mapBackground" class="map-background hidden" alt="Map background">
                     <div class="map-overlay" id="mapOverlay"></div>
@@ -109,11 +106,6 @@
                         <p>No map image uploaded yet!</p>
                         <p>Go to Settings to upload a map background.</p>
                     </div>
-                </div>
-                <div class="map-recordings-list" id="mapRecordingsList">
-                    <h3>📦 Drag Sounds to Map</h3>
-                    <div class="map-filter-tags" id="mapFilterTags"></div>
-                    <div class="map-recordings-grid" id="mapRecordingsGrid"></div>
                 </div>
             </div>
         </div>
