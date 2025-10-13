@@ -797,28 +797,17 @@ class SoundExplorer {
         }).join('');
 
         // Build bubbles list: show ALL recordings across the top
-        const all = this.recordings.filter(r => !this.mapPositions[r.id]); // only those not yet on map
+        const all = this.recordings.filter(r => !this.mapPositions[r.id]);
         bubbles.innerHTML = all.map(rec => {
-            const color = this.getColorForRecording(rec.id);
-            const thumb = rec.photoDataUrl || rec.thumbnail || '';
-            return `
-              <div class="sound-bubble" data-id="${rec.id}" draggable="true" title="${rec.label}">
-                <img class="sound-bubble-thumb" src="${thumb}" alt="${rec.label}" onerror="this.style.background='${color}';this.src='';">
-                <div class="sound-bubble-label">${rec.label}</div>
-                <button class="sound-bubble-add" data-id="${rec.id}" aria-label="Add to map">➕ Add</button>
-              </div>`;
+            const color = this.getColorForRecording(rec.id), thumb = rec.photoDataUrl || rec.thumbnail || '';
+            return `<div class="sound-bubble" data-id="${rec.id}" title="${rec.label}">
+              <img class="sound-bubble-thumb" src="${thumb}" alt="${rec.label}" onerror="this.style.background='${color}';this.src='';">
+              <button class="bubble-add-btn" data-id="${rec.id}" aria-label="Add to map">＋</button>
+              <div class="sound-bubble-label">${rec.label}</div>
+            </div>`;
         }).join('');
-        bubbles.querySelectorAll('.sound-bubble').forEach(el=>{
-            el.addEventListener('dragstart',(e)=>{ this.draggedRecording = el.dataset.id; el.style.opacity='0.6'; });
-            el.addEventListener('dragend',()=>{ el.style.opacity='1'; });
-            el.addEventListener('touchstart',(e)=> this.handleTouchStart(e, el.dataset.id), { passive: false });
-        });
-        bubbles.querySelectorAll('.sound-bubble-add').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const { x, y } = this.computeAutoPosition();
-                this.addToMap(btn.dataset.id, x, y);
-            });
-        });
+        bubbles.querySelectorAll('.bubble-add-btn').forEach(btn=>btn.addEventListener('click',(e)=>{ e.stopPropagation(); this.addToMap(btn.dataset.id, 50, 50); }));
+        bubbles.querySelectorAll('.sound-bubble').forEach(el=>el.addEventListener('click',()=>this.playRecording(el.dataset.id)));
 
         // Add click listeners to pins for playing
         overlay.querySelectorAll('.map-pin').forEach(pin => {
@@ -1079,15 +1068,6 @@ class SoundExplorer {
         // Deterministic bright color per id
         const hue = parseInt(id, 10) % 360;
         return `hsl(${hue}, 75%, 55%)`;
-    }
-    
-    computeAutoPosition() {
-        const n = Object.keys(this.mapPositions).length;
-        const angle = (n * 40) * Math.PI / 180;
-        const r = 25;
-        const x = 50 + r * Math.cos(angle);
-        const y = 50 + r * Math.sin(angle);
-        return { x: Math.max(5, Math.min(95, x)), y: Math.max(5, Math.min(95, y)) };
     }
 
     resizeMapToImage() {
