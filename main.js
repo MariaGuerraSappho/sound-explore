@@ -24,6 +24,7 @@ class SoundExplorer {
         this.currentPhotoDataUrl = null;
         this.cameraStream = null;
         this.activeAudios = new Set(); // track all playing audios
+        this.APP_VERSION = 'v0.1.0';
         
         // Sound Hunt missions
         this.missions = [
@@ -108,6 +109,7 @@ class SoundExplorer {
         this.completedMissions = [];
         
         this.init();
+        const vEl = document.getElementById('appVersion'); if (vEl) vEl.textContent = this.APP_VERSION;
     }
 
     async init() {
