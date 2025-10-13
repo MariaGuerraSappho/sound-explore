@@ -786,11 +786,12 @@ class SoundExplorer {
             const rec = this.recordings.find(r => r.id === recId);
             if (!rec) return '';
             const pos = this.mapPositions[recId];
+            const imgSrc = rec.photoDataUrl || rec.thumbnail || '';
             return `
-                <div class="map-pin ${this.mapShowPictures && rec.photoDataUrl ? 'photo-pin':''}" 
-                     style="left:${pos.x}%;top:${pos.y}%;${!this.mapShowPictures||!rec.photoDataUrl?`background:${pos.color||'#8b5cf6'};`:''}" 
+                <div class="map-pin ${imgSrc ? 'photo-pin' : ''}" 
+                     style="left:${pos.x}%;top:${pos.y}%;${!imgSrc ? `background:${pos.color||'#8b5cf6'};` : ''}" 
                      data-id="${rec.id}" draggable="true">
-                    ${this.mapShowPictures && rec.photoDataUrl ? `<img src="${rec.photoDataUrl}" class="map-pin-photo" alt="${rec.label}">` : '📍'}
+                    ${imgSrc ? `<img src="${imgSrc}" class="map-pin-photo" alt="${rec.label}">` : '📍'}
                     <span class="map-pin-label">${rec.label}</span>
                     <button class="map-pin-remove" data-id="${rec.id}">×</button>
                 </div>`;
