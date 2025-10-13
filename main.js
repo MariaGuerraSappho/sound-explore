@@ -114,7 +114,8 @@ class SoundExplorer {
         await this.loadSettings();
         await this.loadRecordings();
         this.setupEventListeners();
-        await this.startAutoVisualization(); // auto-start mic/camera + sonogram
+        // removed auto-start; wait for user to press START
+        // await this.startAutoVisualization();
     }
 
     showOnboarding() {
@@ -134,7 +135,7 @@ class SoundExplorer {
         });
 
         // Visualization start/stop button
-        // removed vizStartBtn listener - auto-start on load
+        document.getElementById('vizStartBtn').addEventListener('click', () => this.startListen());
 
         // Listen controls - removed smoothness and focus sliders
         document.getElementById('recordBtn').addEventListener('click', () => this.toggleRecording());
@@ -262,7 +263,7 @@ class SoundExplorer {
 
     async toggleRecording() {
         if (!this.audioProcessor || !this.audioProcessor.isVisualizing) {
-            alert('Please start listening first by clicking the START LISTENING button.');
+            alert('Press START LISTENING first to enable the microphone.');
             return;
         }
 
@@ -1093,6 +1094,20 @@ class SoundExplorer {
         document.querySelectorAll('.btn-play.playing').forEach(btn => {
             btn.classList.remove('playing');
             btn.innerHTML = '<span>▶️ Play</span>';
+        });
+    }
+
+    startListen() {
+        // Only start once; no stop button
+        if (this.audioProcessor && this.audioProcessor.isVisualizing) return;
+        this.startAutoVisualization().then(() => {
+            const btn = document.getElementById('vizStartBtn');
+            btn.disabled = true;
+            btn.classList.add('active');
+            btn.querySelector('.viz-start-icon').textContent = '✅';
+            btn.querySelector('.viz-start-text').textContent = 'LISTENING...';
+            // Optionally hide after starting:
+            setTimeout(() => { btn.style.display = 'none'; }, 600);
         });
     }
 }
