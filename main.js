@@ -146,6 +146,11 @@ class SoundExplorer {
             if (this.audioProcessor) {
                 this.audioProcessor.setGain(e.target.value);
             }
+            // ★ Update slider value display
+            const valueDisplay = document.getElementById('gainValue');
+            if (valueDisplay) {
+                valueDisplay.textContent = `${e.target.value}x`;
+            }
         });
 
         // Label modal

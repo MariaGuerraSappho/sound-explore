@@ -34,7 +34,7 @@ export class AudioProcessor {
       this.analyser.fftSize = this.fftSize;
       this.analyser.smoothingTimeConstant = 0.8;
       this.analyser.minDecibels = -120;            // ★ increase sensitivity
-      this.analyser.maxDecibels = -10;             // ★ widen range
+      this.analyser.maxDecibels = -20;             // ★ lowered from -10 to -20 to reduce clipping
       this.bufferLength = this.analyser.frequencyBinCount;
       this.dataArray = new Uint8Array(this.bufferLength);
 
@@ -87,7 +87,8 @@ export class AudioProcessor {
   setGain(value) {
     if (this.gainNode) {
       const v = Math.max(0.1, parseFloat(value) || 1);
-      const mapped = Math.min(400, v * v);        // ★ strong non-linear boost up to 400x
+      // ★ Further reduce multiplier from 3 to 1.5 for much gentler gain curve, max 10x instead of 20x
+      const mapped = Math.min(10, Math.sqrt(v) * 1.5);
       if (this.preamp) {
         this.preamp.gain.setTargetAtTime(mapped, this.audioContext.currentTime, 0.01);
       }
@@ -135,14 +136,33 @@ export class AudioProcessor {
     const average = this.dataArray.reduce((a, b) => a + b, 0) / this.dataArray.length;
     const normalizedLevel = average / 255;
 
+    // ★ Check for clipping
+    const maxValue = Math.max(...this.dataArray);
+    const isClipping = maxValue >= 250; // Near max = clipping
+
     const levelBar = document.getElementById('levelBar');
-    if (levelBar) levelBar.style.transform = `scaleY(${normalizedLevel})`;  // ★ guard
+    if (levelBar) {
+      levelBar.style.transform = `scaleY(${normalizedLevel})`;
+      // ★ Change color if clipping
+      if (isClipping) {
+        levelBar.style.background = 'linear-gradient(to top, #ef4444, #dc2626)';
+      } else {
+        levelBar.style.background = 'linear-gradient(to top, #60a5fa, #a78bfa, #f472b6, #facc15, #a3e63e)';
+      }
+    }
 
     const levelText = document.getElementById('levelText');
     if (levelText) {
-      if (normalizedLevel < 0.3) levelText.textContent = 'Quiet';
-      else if (normalizedLevel < 0.7) levelText.textContent = 'Medium';
-      else levelText.textContent = 'Loud';
+      // ★ Show clipping warning
+      if (isClipping) {
+        levelText.textContent = 'CLIP!';
+        levelText.style.color = '#ef4444';
+      } else {
+        levelText.style.color = 'white';
+        if (normalizedLevel < 0.3) levelText.textContent = 'Quiet';
+        else if (normalizedLevel < 0.7) levelText.textContent = 'Medium';
+        else levelText.textContent = 'Loud';
+      }
     }
 
     this.drawFFTSpectrogram();
