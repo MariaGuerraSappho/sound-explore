@@ -24,7 +24,7 @@ class SoundExplorer {
         this.currentPhotoDataUrl = null;
         this.cameraStream = null;
         this.activeAudios = new Set(); // track all playing audios
-        this.APP_VERSION = 'v0.1.0';
+        this.APP_VERSION = 'v0.1.2'; // ★ Updated version
         
         // Sound Hunt missions
         this.missions = [
@@ -520,9 +520,19 @@ class SoundExplorer {
         this.mapBackgroundUrl = await this.storage.get('mapBackground');
         if (this.mapBackgroundUrl) {
             const img = document.getElementById('mapBackground');
-            img.onload = () => { this.resizeMapToImage(); document.getElementById('mapContainer').classList.add('has-image'); };
+            img.onload = () => { 
+                this.resizeMapToImage(); 
+                document.getElementById('mapContainer').classList.add('has-image'); 
+            };
             img.src = this.mapBackgroundUrl;
             img.classList.remove('hidden');
+            
+            // ★ Also show preview in settings
+            const preview = document.getElementById('mapPreview');
+            if (preview) {
+                preview.src = this.mapBackgroundUrl;
+                preview.style.display = 'block';
+            }
         }
         
         // Load map positions
@@ -942,15 +952,63 @@ class SoundExplorer {
     async uploadMapBackground(file) {
         if (!file) return;
 
+        // Show loading feedback
+        const uploadBtn = document.getElementById('uploadMapBtn');
+        const originalText = uploadBtn.textContent;
+        uploadBtn.textContent = 'Uploading...';
+        uploadBtn.disabled = true;
+
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const img = document.getElementById('mapBackground');
-            img.onload = () => { this.resizeMapToImage(); document.getElementById('mapContainer').classList.add('has-image'); };
-            this.mapBackgroundUrl = e.target.result;
-            await this.storage.set('mapBackground', e.target.result);
-            img.src = e.target.result;
-            img.classList.remove('hidden');
+            try {
+                const img = document.getElementById('mapBackground');
+                
+                // Store the data URL
+                this.mapBackgroundUrl = e.target.result;
+                await this.storage.set('mapBackground', e.target.result);
+                
+                // Update preview in settings
+                const preview = document.getElementById('mapPreview');
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                
+                // Update main map image
+                img.onload = () => { 
+                    this.resizeMapToImage(); 
+                    document.getElementById('mapContainer').classList.add('has-image');
+                    
+                    // Success feedback
+                    uploadBtn.textContent = '✓ Uploaded!';
+                    uploadBtn.style.background = 'var(--secondary-color)';
+                    setTimeout(() => {
+                        uploadBtn.textContent = originalText;
+                        uploadBtn.style.background = '';
+                        uploadBtn.disabled = false;
+                    }, 2000);
+                };
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                
+                // If map tab is active, refresh it
+                if (this.currentTab === 'map') {
+                    this.renderMap();
+                }
+            } catch (error) {
+                console.error('Error uploading map:', error);
+                alert('Error uploading map image. Please try again.');
+                uploadBtn.textContent = originalText;
+                uploadBtn.disabled = false;
+            }
         };
+        
+        reader.onerror = () => {
+            alert('Error reading file. Please check file permissions and try again.');
+            uploadBtn.textContent = originalText;
+            uploadBtn.disabled = false;
+        };
+        
         reader.readAsDataURL(file);
     }
 

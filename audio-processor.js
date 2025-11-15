@@ -19,6 +19,10 @@ export class AudioProcessor {
 
     this.mediaDest = null;        // ★ for recording processed audio
     this.preamp = null;           // ★ extra gain stage for low-input devices
+    this.compressor = null;       // ★ dynamics compressor
+    this.limiter = null;         // ★ limiter (second compressor with hard limiting)
+    this.peakLevel = 0;           // ★ track peak levels for adaptive gain
+    this.peakDecay = 0.95;        // ★ peak decay rate
   }
 
   async init(stream) {
@@ -33,27 +37,45 @@ export class AudioProcessor {
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = this.fftSize;
       this.analyser.smoothingTimeConstant = 0.8;
-      this.analyser.minDecibels = -120;            // ★ increase sensitivity
-      this.analyser.maxDecibels = -20;             // ★ lowered from -10 to -20 to reduce clipping
+      this.analyser.minDecibels = -120;
+      this.analyser.maxDecibels = -10; // ★ Reset to prevent over-compression
       this.bufferLength = this.analyser.frequencyBinCount;
       this.dataArray = new Uint8Array(this.bufferLength);
 
       this.gainNode = this.audioContext.createGain();
       this.gainNode.gain.value = 1;
 
-      // Connect: microphone -> preamp -> gain -> analyser (+ recorder)
-      this.preamp = this.audioContext.createGain();            // ★
-      this.preamp.gain.value = 1;                              // ★
-      this.microphone.connect(this.preamp);                    // ★
-      this.preamp.connect(this.gainNode);                      // ★
-      this.gainNode.connect(this.analyser);
+      // ★ Add dynamics compressor to prevent clipping
+      this.compressor = this.audioContext.createDynamicsCompressor();
+      this.compressor.threshold.setValueAtTime(-24, this.audioContext.currentTime);
+      this.compressor.knee.setValueAtTime(30, this.audioContext.currentTime);
+      this.compressor.ratio.setValueAtTime(12, this.audioContext.currentTime);
+      this.compressor.attack.setValueAtTime(0.003, this.audioContext.currentTime);
+      this.compressor.release.setValueAtTime(0.25, this.audioContext.currentTime);
+
+      // ★ Add limiter (second compressor with hard limiting)
+      this.limiter = this.audioContext.createDynamicsCompressor();
+      this.limiter.threshold.setValueAtTime(-3, this.audioContext.currentTime);
+      this.limiter.knee.setValueAtTime(0, this.audioContext.currentTime);
+      this.limiter.ratio.setValueAtTime(20, this.audioContext.currentTime);
+      this.limiter.attack.setValueAtTime(0.001, this.audioContext.currentTime);
+      this.limiter.release.setValueAtTime(0.1, this.audioContext.currentTime);
+
+      // Connect: microphone -> preamp -> compressor -> gain -> limiter -> analyser (+ recorder)
+      this.preamp = this.audioContext.createGain();
+      this.preamp.gain.value = 1;
+      this.microphone.connect(this.preamp);
+      this.preamp.connect(this.compressor);
+      this.compressor.connect(this.gainNode);
+      this.gainNode.connect(this.limiter);
+      this.limiter.connect(this.analyser);
 
       // ★ Route to destination so you can hear it (comment this if you don't want live monitoring)
       // this.gainNode.connect(this.audioContext.destination);
 
-      // ★ Tap the processed signal for MediaRecorder
+      // ★ Tap the processed signal AFTER limiter for MediaRecorder
       this.mediaDest = this.audioContext.createMediaStreamDestination();
-      this.gainNode.connect(this.mediaDest);
+      this.limiter.connect(this.mediaDest);
 
       // Setup canvas
       this.fftCanvas = document.getElementById('fftCanvas');
@@ -70,7 +92,10 @@ export class AudioProcessor {
         if (event.data.size > 0) this.recordedChunks.push(event.data);
       };
 
-      // (don't auto-start viz)
+      // ★ Track peak levels for adaptive gain
+      this.peakLevel = 0;
+      this.peakDecay = 0.95;
+
     } catch (error) {
       console.error('Error initializing audio:', error);
       throw error;
@@ -87,10 +112,16 @@ export class AudioProcessor {
   setGain(value) {
     if (this.gainNode) {
       const v = Math.max(0.1, parseFloat(value) || 1);
-      // ★ Further reduce multiplier from 3 to 1.5 for much gentler gain curve, max 10x instead of 20x
-      const mapped = Math.min(10, Math.sqrt(v) * 1.5);
+      // ★ Much more conservative gain curve with auto-adjustment based on peak levels
+      // Base multiplier reduced to prevent any possibility of clipping
+      const baseMultiplier = 0.8; // ★ Maximum 0.8x to leave headroom
+      const mapped = Math.min(3, Math.pow(v / 100, 0.7) * baseMultiplier * 3); // ★ Gentler curve, max 2.4x
+      
+      // ★ Apply adaptive gain reduction if peaks detected
+      const safeGain = this.peakLevel > 0.7 ? mapped * 0.5 : mapped;
+      
       if (this.preamp) {
-        this.preamp.gain.setTargetAtTime(mapped, this.audioContext.currentTime, 0.01);
+        this.preamp.gain.setTargetAtTime(safeGain, this.audioContext.currentTime, 0.01);
       }
     }
   }
@@ -136,14 +167,17 @@ export class AudioProcessor {
     const average = this.dataArray.reduce((a, b) => a + b, 0) / this.dataArray.length;
     const normalizedLevel = average / 255;
 
-    // ★ Check for clipping
+    // ★ Track peak with decay for adaptive gain control
+    const currentPeak = Math.max(...this.dataArray) / 255;
+    this.peakLevel = Math.max(currentPeak, this.peakLevel * this.peakDecay);
+
+    // ★ Detect clipping with lower threshold
     const maxValue = Math.max(...this.dataArray);
-    const isClipping = maxValue >= 250; // Near max = clipping
+    const isClipping = maxValue >= 240; // ★ Lower threshold (was 250)
 
     const levelBar = document.getElementById('levelBar');
     if (levelBar) {
       levelBar.style.transform = `scaleY(${normalizedLevel})`;
-      // ★ Change color if clipping
       if (isClipping) {
         levelBar.style.background = 'linear-gradient(to top, #ef4444, #dc2626)';
       } else {
@@ -153,7 +187,6 @@ export class AudioProcessor {
 
     const levelText = document.getElementById('levelText');
     if (levelText) {
-      // ★ Show clipping warning
       if (isClipping) {
         levelText.textContent = 'CLIP!';
         levelText.style.color = '#ef4444';
